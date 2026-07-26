@@ -1,0 +1,117 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A00100000000000000000001 /* UDCApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00100000000000000000001; };
+		A00100000000000000000002 /* RootTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00100000000000000000002; };
+		A00100000000000000000003 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00100000000000000000003; };
+		A00100000000000000000004 /* VehicleProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00100000000000000000004; };
+		A00100000000000000000005 /* ManualDrivelineConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00100000000000000000005; };
+		A00100000000000000000006 /* LocationProviding.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00100000000000000000006; };
+		A00100000000000000000007 /* DrivingSessionManaging.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00100000000000000000007; };
+		A00100000000000000000008 /* OBDProviding.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00100000000000000000008; };
+		A00100000000000000000009 /* PersistencePurpose.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00100000000000000000009; };
+		A0010000000000000000000A /* UsagePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0010000000000000000000A; };
+		A0010000000000000000000B /* AppDesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0010000000000000000000B; };
+		A0010000000000000000000C /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0010000000000000000000C; };
+		A0010000000000000000000D /* DrivesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0010000000000000000000D; };
+		A0010000000000000000000E /* PerformanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0010000000000000000000E; };
+		A0010000000000000000000F /* FuelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0010000000000000000000F; };
+		A00100000000000000000010 /* GarageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00100000000000000000010; };
+		A00100000000000000000011 /* AddVehicleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00100000000000000000011; };
+		A00100000000000000000012 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00100000000000000000012; };
+		A00100000000000000000013 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B00100000000000000000013; };
+		A00100000000000000000014 /* PreviewAssets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B00100000000000000000014; };
+		A00100000000000000000015 /* VehicleProfileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00100000000000000000015; };
+		A00100000000000000000016 /* UsagePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00100000000000000000016; };
+		A00100000000000000000017 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B00100000000000000000017; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		C00100000000000000000001 = {isa = PBXContainerItemProxy; containerPortal = D00100000000000000000001; proxyType = 1; remoteGlobalIDString = D00100000000000000000002; remoteInfo = UDC; };
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		B00100000000000000000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/UDCApp.swift; sourceTree = "<group>"; };
+		B00100000000000000000002 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/RootTabView.swift; sourceTree = "<group>"; };
+		B00100000000000000000003 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/OnboardingView.swift; sourceTree = "<group>"; };
+		B00100000000000000000004 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models/VehicleProfile.swift; sourceTree = "<group>"; };
+		B00100000000000000000005 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models/ManualDrivelineConfiguration.swift; sourceTree = "<group>"; };
+		B00100000000000000000006 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Location/LocationProviding.swift; sourceTree = "<group>"; };
+		B00100000000000000000007 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Driving/DrivingSessionManaging.swift; sourceTree = "<group>"; };
+		B00100000000000000000008 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/OBD/OBDProviding.swift; sourceTree = "<group>"; };
+		B00100000000000000000009 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Persistence/PersistencePurpose.swift; sourceTree = "<group>"; };
+		B0010000000000000000000A = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Utilities/UsagePolicy.swift; sourceTree = "<group>"; };
+		B0010000000000000000000B = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem/AppDesignSystem.swift; sourceTree = "<group>"; };
+		B0010000000000000000000C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Dashboard/DashboardView.swift; sourceTree = "<group>"; };
+		B0010000000000000000000D = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Drives/DrivesView.swift; sourceTree = "<group>"; };
+		B0010000000000000000000E = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Performance/PerformanceView.swift; sourceTree = "<group>"; };
+		B0010000000000000000000F = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Fuel/FuelView.swift; sourceTree = "<group>"; };
+		B00100000000000000000010 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Garage/GarageView.swift; sourceTree = "<group>"; };
+		B00100000000000000000011 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Garage/AddVehicleView.swift; sourceTree = "<group>"; };
+		B00100000000000000000012 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Settings/SettingsView.swift; sourceTree = "<group>"; };
+		B00100000000000000000013 = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Resources/Assets.xcassets; sourceTree = "<group>"; };
+		B00100000000000000000014 = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = PreviewContent/PreviewAssets.xcassets; sourceTree = "<group>"; };
+		B00100000000000000000015 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models/VehicleProfileTests.swift; sourceTree = "<group>"; };
+		B00100000000000000000016 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/UsagePolicyTests.swift; sourceTree = "<group>"; };
+		B00100000000000000000017 = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = System/Library/Frameworks/XCTest.framework; sourceTree = SDKROOT; };
+		B00100000000000000000018 = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = UDC.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B00100000000000000000019 = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = UDCTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		E00100000000000000000001 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		E00100000000000000000002 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (A00100000000000000000017,); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		F00100000000000000000001 = {isa = PBXGroup; children = (F00100000000000000000002, F00100000000000000000003, F00100000000000000000004,); sourceTree = "<group>"; };
+		F00100000000000000000002 = {isa = PBXGroup; children = (B00100000000000000000001,B00100000000000000000002,B00100000000000000000003,B00100000000000000000004,B00100000000000000000005,B00100000000000000000006,B00100000000000000000007,B00100000000000000000008,B00100000000000000000009,B0010000000000000000000A,B0010000000000000000000B,B0010000000000000000000C,B0010000000000000000000D,B0010000000000000000000E,B0010000000000000000000F,B00100000000000000000010,B00100000000000000000011,B00100000000000000000012,B00100000000000000000013,B00100000000000000000014,); path = UDC; sourceTree = "<group>"; };
+		F00100000000000000000003 = {isa = PBXGroup; children = (B00100000000000000000015,B00100000000000000000016,); path = UDCTests; sourceTree = "<group>"; };
+		F00100000000000000000004 = {isa = PBXGroup; children = (B00100000000000000000018,B00100000000000000000019,); name = Products; sourceTree = "<group>"; };
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		D00100000000000000000002 = {isa = PBXNativeTarget; buildConfigurationList = G00100000000000000000002; buildPhases = (H00100000000000000000001,E00100000000000000000001,I00100000000000000000001,); buildRules = (); dependencies = (); name = UDC; productName = UDC; productReference = B00100000000000000000018; productType = "com.apple.product-type.application"; };
+		D00100000000000000000003 = {isa = PBXNativeTarget; buildConfigurationList = G00100000000000000000003; buildPhases = (H00100000000000000000002,E00100000000000000000002,I00100000000000000000002,); buildRules = (); dependencies = (J00100000000000000000001,); name = UDCTests; productName = UDCTests; productReference = B00100000000000000000019; productType = "com.apple.product-type.bundle.unit-test"; };
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		D00100000000000000000001 = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = 1; LastSwiftUpdateCheck = 2660; LastUpgradeCheck = 2660; TargetAttributes = {D00100000000000000000002 = {CreatedOnToolsVersion = 26.6;}; D00100000000000000000003 = {CreatedOnToolsVersion = 26.6; TestTargetID = D00100000000000000000002;};};}; buildConfigurationList = G00100000000000000000001; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en,Base,); mainGroup = F00100000000000000000001; productRefGroup = F00100000000000000000004; projectDirPath = ""; projectRoot = ""; targets = (D00100000000000000000002,D00100000000000000000003,); };
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		I00100000000000000000001 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A00100000000000000000013,A00100000000000000000014,); runOnlyForDeploymentPostprocessing = 0; };
+		I00100000000000000000002 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		H00100000000000000000001 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00100000000000000000001,A00100000000000000000002,A00100000000000000000003,A00100000000000000000004,A00100000000000000000005,A00100000000000000000006,A00100000000000000000007,A00100000000000000000008,A00100000000000000000009,A0010000000000000000000A,A0010000000000000000000B,A0010000000000000000000C,A0010000000000000000000D,A0010000000000000000000E,A0010000000000000000000F,A00100000000000000000010,A00100000000000000000011,A00100000000000000000012,); runOnlyForDeploymentPostprocessing = 0; };
+		H00100000000000000000002 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00100000000000000000015,A00100000000000000000016,); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		J00100000000000000000001 = {isa = PBXTargetDependency; target = D00100000000000000000002; targetProxy = C00100000000000000000001; };
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		K00100000000000000000001 = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; SWIFT_VERSION = 5.0;}; name = Debug;};
+		K00100000000000000000002 = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; SWIFT_COMPILATION_MODE = wholemodule; SWIFT_OPTIMIZATION_LEVEL = "-O"; SWIFT_VERSION = 5.0;}; name = Release;};
+		K00100000000000000000003 = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; ENABLE_TESTABILITY = YES; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = UDC; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.navigation"; INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES; INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES; INFOPLIST_KEY_UILaunchScreen_Generation = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = com.brianmcguiness.udc; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SUPPORTS_MACCATALYST = NO; SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; TARGETED_DEVICE_FAMILY = 1;}; name = Debug;};
+		K00100000000000000000004 = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = UDC; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.navigation"; INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES; INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES; INFOPLIST_KEY_UILaunchScreen_Generation = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = com.brianmcguiness.udc; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SUPPORTS_MACCATALYST = NO; SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO; SWIFT_EMIT_LOC_STRINGS = YES; TARGETED_DEVICE_FAMILY = 1;}; name = Release;};
+		K00100000000000000000005 = {isa = XCBuildConfiguration; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = com.brianmcguiness.udc.tests; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_EMIT_LOC_STRINGS = NO; TARGETED_DEVICE_FAMILY = 1; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/UDC.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/UDC";}; name = Debug;};
+		K00100000000000000000006 = {isa = XCBuildConfiguration; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = com.brianmcguiness.udc.tests; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_EMIT_LOC_STRINGS = NO; TARGETED_DEVICE_FAMILY = 1; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/UDC.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/UDC";}; name = Release;};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		G00100000000000000000001 = {isa = XCConfigurationList; buildConfigurations = (K00100000000000000000001,K00100000000000000000002,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
+		G00100000000000000000002 = {isa = XCConfigurationList; buildConfigurations = (K00100000000000000000003,K00100000000000000000004,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
+		G00100000000000000000003 = {isa = XCConfigurationList; buildConfigurations = (K00100000000000000000005,K00100000000000000000006,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
+/* End XCConfigurationList section */
+	};
+	rootObject = D00100000000000000000001;
+}
