@@ -8,9 +8,15 @@ final class DrivingTelemetryService {
     private(set) var state: DrivingState = .idle
     private(set) var diagnostics: DrivingDiagnostics = .empty
 
+    /// Downstream observers (e.g. DrivingEngine) receive normalized state after each update.
+    var onStateUpdate: ((DrivingState) -> Void)?
+
     private let locationProvider: any LocationProviding
     private var smoother = SpeedSmoother()
     private let filterConfiguration = GPSSpeedFilter.Configuration()
+    private var gpsSampleCount = 0
+    private var acceptedSampleCount = 0
+    private var rejectedSampleCount = 0
 
     init(locationProvider: any LocationProviding) {
         self.locationProvider = locationProvider
@@ -51,6 +57,32 @@ final class DrivingTelemetryService {
             diagnostics.activeVehicleName = name
             diagnostics.preferredSpeedUnit = speedUnit
         }
+        onStateUpdate?(state)
+    }
+
+    func updateSessionDiagnostics(
+        phase: DriveSessionPhase,
+        liveTrip: LiveTrip?,
+        startReason: DriveSessionStartReason?,
+        endReason: DriveSessionEndReason?,
+        movementThresholdMetersPerSecond: Double,
+        gpsSampleCount: Int,
+        acceptedSampleCount: Int,
+        rejectedSampleCount: Int
+    ) {
+        diagnostics.sessionPhase = phase
+        diagnostics.tripID = liveTrip?.id
+        diagnostics.sessionStartedAt = liveTrip?.startedAt
+        diagnostics.sessionDistanceMeters = liveTrip?.distanceMeters
+        diagnostics.sessionDurationSeconds = liveTrip.map { $0.duration() }
+        diagnostics.sessionAverageSpeedMetersPerSecond = liveTrip.map { $0.averageSpeedMetersPerSecond() }
+        diagnostics.sessionMaximumSpeedMetersPerSecond = liveTrip?.maximumSpeedMetersPerSecond
+        diagnostics.sessionStartReason = startReason
+        diagnostics.sessionEndReason = endReason
+        diagnostics.movementThresholdMetersPerSecond = movementThresholdMetersPerSecond
+        diagnostics.gpsSampleCount = gpsSampleCount
+        diagnostics.acceptedSampleCount = acceptedSampleCount
+        diagnostics.rejectedSampleCount = rejectedSampleCount
     }
 
     // MARK: - Private
@@ -93,15 +125,22 @@ final class DrivingTelemetryService {
             )
         }
         refreshDiagnosticsMetadata()
+        onStateUpdate?(state)
     }
 
     private func handleSnapshot(_ snapshot: LocationSnapshot) {
         let now = Date.now
+        gpsSampleCount += 1
         let filterResult = GPSSpeedFilter.evaluate(
             snapshot: snapshot,
             now: now,
             configuration: filterConfiguration
         )
+        if filterResult.acceptedSpeedMetersPerSecond != nil {
+            acceptedSampleCount += 1
+        } else {
+            rejectedSampleCount += 1
+        }
 
         state.latitude = snapshot.latitude
         state.longitude = snapshot.longitude
@@ -142,6 +181,7 @@ final class DrivingTelemetryService {
         )
 
         updateDiagnostics(snapshot: snapshot, filterResult: filterResult, now: now)
+        onStateUpdate?(state)
     }
 
     private func publishDisplayedSpeed() {
@@ -178,6 +218,7 @@ final class DrivingTelemetryService {
         filterResult: GPSSpeedFilter.Result,
         now: Date
     ) {
+        let previous = diagnostics
         diagnostics = DrivingDiagnostics(
             authorizationStatus: locationProvider.authorizationStatus,
             isLocationServicesEnabled: locationProvider.isLocationServicesEnabled,
@@ -197,7 +238,20 @@ final class DrivingTelemetryService {
             gpsStatus: state.gpsStatus,
             preferredSpeedUnit: state.preferredSpeedUnit,
             activeVehicleName: state.activeVehicleName,
-            filterRejection: filterResult.rejection.map(String.init(describing:))
+            filterRejection: filterResult.rejection.map(String.init(describing:)),
+            sessionPhase: previous.sessionPhase,
+            tripID: previous.tripID,
+            sessionStartedAt: previous.sessionStartedAt,
+            sessionDistanceMeters: previous.sessionDistanceMeters,
+            sessionDurationSeconds: previous.sessionDurationSeconds,
+            sessionAverageSpeedMetersPerSecond: previous.sessionAverageSpeedMetersPerSecond,
+            sessionMaximumSpeedMetersPerSecond: previous.sessionMaximumSpeedMetersPerSecond,
+            sessionStartReason: previous.sessionStartReason,
+            sessionEndReason: previous.sessionEndReason,
+            movementThresholdMetersPerSecond: previous.movementThresholdMetersPerSecond,
+            gpsSampleCount: gpsSampleCount,
+            acceptedSampleCount: acceptedSampleCount,
+            rejectedSampleCount: rejectedSampleCount
         )
     }
 }
@@ -222,6 +276,21 @@ struct DrivingDiagnostics: Equatable, Sendable {
     var preferredSpeedUnit: SpeedUnit = .milesPerHour
     var activeVehicleName: String?
     var filterRejection: String?
+
+    // Session / trip diagnostics
+    var sessionPhase: DriveSessionPhase = .idle
+    var tripID: UUID?
+    var sessionStartedAt: Date?
+    var sessionDistanceMeters: Double?
+    var sessionDurationSeconds: TimeInterval?
+    var sessionAverageSpeedMetersPerSecond: Double?
+    var sessionMaximumSpeedMetersPerSecond: Double?
+    var sessionStartReason: DriveSessionStartReason?
+    var sessionEndReason: DriveSessionEndReason?
+    var movementThresholdMetersPerSecond: Double = DriveSessionConfiguration().startSpeedMetersPerSecond
+    var gpsSampleCount: Int = 0
+    var acceptedSampleCount: Int = 0
+    var rejectedSampleCount: Int = 0
 
     static let empty = DrivingDiagnostics()
 }

@@ -46,6 +46,29 @@ struct DiagnosticsView: View {
                     row("Active Vehicle", diagnostics.activeVehicleName ?? "—")
                     row("Current Units", diagnostics.preferredSpeedUnit.settingsLabel, showsDivider: false)
                 }
+
+                diagnosticsCard(title: "Session") {
+                    row("Session State", diagnostics.sessionPhase.displayName)
+                    row("Trip ID", diagnostics.tripID?.uuidString ?? "—")
+                    row("Session Start", timestamp(diagnostics.sessionStartedAt))
+                    row("Distance", meters(diagnostics.sessionDistanceMeters))
+                    row("Drive Time", age(diagnostics.sessionDurationSeconds))
+                    row("Average Speed", mps(diagnostics.sessionAverageSpeedMetersPerSecond))
+                    row("Maximum Speed", mps(diagnostics.sessionMaximumSpeedMetersPerSecond))
+                    row("Start Reason", diagnostics.sessionStartReason?.rawValue ?? "—")
+                    row("End Reason", diagnostics.sessionEndReason?.rawValue ?? "—")
+                    row(
+                        "Movement Threshold",
+                        String(format: "%.2f m/s", diagnostics.movementThresholdMetersPerSecond),
+                        showsDivider: false
+                    )
+                }
+
+                diagnosticsCard(title: "Sample Counts") {
+                    row("GPS Samples", "\(diagnostics.gpsSampleCount)")
+                    row("Accepted Samples", "\(diagnostics.acceptedSampleCount)")
+                    row("Rejected Samples", "\(diagnostics.rejectedSampleCount)", showsDivider: false)
+                }
             }
             .padding(.horizontal, AppSpacing.md)
             .padding(.top, AppSpacing.sm)

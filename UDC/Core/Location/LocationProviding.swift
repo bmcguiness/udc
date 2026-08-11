@@ -101,9 +101,10 @@ final class CoreLocationProvider: NSObject, LocationProviding, CLLocationManager
     var onSnapshot: ((LocationSnapshot) -> Void)?
 
     private var latestHeading: CLHeading?
+    private var cachedLocationServicesEnabled: Bool = true
 
     var isLocationServicesEnabled: Bool {
-        CLLocationManager.locationServicesEnabled()
+        cachedLocationServicesEnabled
     }
 
     override init() {
@@ -117,6 +118,7 @@ final class CoreLocationProvider: NSObject, LocationProviding, CLLocationManager
         manager.distanceFilter = kCLDistanceFilterNone
         manager.activityType = .automotiveNavigation
         manager.pausesLocationUpdatesAutomatically = false
+        refreshLocationServicesEnabledCache()
     }
 
     func requestWhenInUseAuthorization() {
@@ -138,6 +140,7 @@ final class CoreLocationProvider: NSObject, LocationProviding, CLLocationManager
     }
 
     func refreshAuthorizationStatus() {
+        refreshLocationServicesEnabledCache()
         let status = Self.map(managerAuthorization: manager.authorizationStatus)
         let changed = status != authorizationStatus
         authorizationStatus = status
@@ -213,6 +216,15 @@ final class CoreLocationProvider: NSObject, LocationProviding, CLLocationManager
         case .authorizedWhenInUse: .authorizedWhenInUse
         case .authorizedAlways: .authorizedAlways
         @unknown default: .denied
+        }
+    }
+
+    private func refreshLocationServicesEnabledCache() {
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let enabled = CLLocationManager.locationServicesEnabled()
+            DispatchQueue.main.async {
+                self?.cachedLocationServicesEnabled = enabled
+            }
         }
     }
 }
