@@ -29,17 +29,73 @@ final class VehicleProfile {
     static func selectActive(_ selected: VehicleProfile, among vehicles: [VehicleProfile]) {
         vehicles.forEach { $0.isActive = ($0.id == selected.id); $0.modifiedAt = .now }
     }
+
+    /// Updates identity fields on the existing record. Does not insert a new vehicle.
+    func applyEdits(
+        name: String,
+        year: Int?,
+        make: String?,
+        model: String?,
+        dataSourceMode: VehicleDataSourceMode
+    ) {
+        self.name = name
+        self.year = year
+        self.make = make
+        self.model = model
+        self.dataSourceMode = dataSourceMode
+        self.modifiedAt = .now
+    }
 }
 
 enum VehicleCategory: String, Codable, CaseIterable { case car, truck, motorcycle, other }
-enum SpeedUnit: String, Codable, CaseIterable { case milesPerHour = "mph"; case kilometersPerHour = "km/h" }
-enum DistanceUnit: String, Codable, CaseIterable { case miles = "mi"; case kilometers = "km" }
+
+enum SpeedUnit: String, Codable, CaseIterable {
+    case milesPerHour = "mph"
+    case kilometersPerHour = "km/h"
+
+    var settingsLabel: String {
+        switch self {
+        case .milesPerHour: "MPH"
+        case .kilometersPerHour: "km/h"
+        }
+    }
+
+    var settingsDetail: String {
+        switch self {
+        case .milesPerHour: "Miles per hour"
+        case .kilometersPerHour: "Kilometers per hour"
+        }
+    }
+}
+
+enum DistanceUnit: String, Codable, CaseIterable {
+    case miles = "mi"
+    case kilometers = "km"
+
+    var settingsLabel: String {
+        switch self {
+        case .miles: "Miles"
+        case .kilometers: "Kilometers"
+        }
+    }
+
+    var settingsDetail: String {
+        switch self {
+        case .miles: "Distance in miles"
+        case .kilometers: "Distance in kilometers"
+        }
+    }
+}
 
 enum VehicleDataSourceMode: String, Codable, CaseIterable, Identifiable {
     case gpsOnly, obdEnhanced, manualDriveline
     var id: Self { self }
     var displayName: String {
-        switch self { case .gpsOnly: "GPS only"; case .obdEnhanced: "OBD-II enhanced"; case .manualDriveline: "Manual driveline" }
+        switch self {
+        case .gpsOnly: "GPS Only"
+        case .obdEnhanced: "OBD-II Enhanced"
+        case .manualDriveline: "Manual Driveline"
+        }
     }
 }
 
