@@ -470,6 +470,8 @@ struct PrivacySettingsView: View {
 // MARK: - About
 
 struct AboutSettingsView: View {
+    @State private var showDiagnostics = false
+
     private var version: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
     }
@@ -497,6 +499,10 @@ struct AboutSettingsView: View {
                             .foregroundStyle(Color.appTextSecondary)
                     }
                 }
+                .onLongPressGesture(minimumDuration: 1.0) {
+                    showDiagnostics = true
+                }
+                .accessibilityHint("Long press for diagnostics")
 
                 AppCard {
                     VStack(alignment: .leading, spacing: 0) {
@@ -514,6 +520,9 @@ struct AboutSettingsView: View {
         .navigationTitle("About")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(Color.appBackground, for: .navigationBar)
+        .navigationDestination(isPresented: $showDiagnostics) {
+            DiagnosticsView()
+        }
     }
 }
 

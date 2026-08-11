@@ -6,6 +6,10 @@ struct UDCApp: App {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @AppStorage(AppAppearance.storageKey) private var appearanceRaw = AppAppearance.dark.rawValue
 
+    @State private var telemetry = DrivingTelemetryService(
+        locationProvider: CoreLocationProvider()
+    )
+
     private var preferredScheme: ColorScheme? {
         (AppAppearance(rawValue: appearanceRaw) ?? .dark).preferredColorScheme
     }
@@ -19,6 +23,7 @@ struct UDCApp: App {
                     OnboardingView(isComplete: $hasCompletedOnboarding)
                 }
             }
+            .environment(telemetry)
             .tint(Color.appAccent)
             .preferredColorScheme(preferredScheme)
         }
