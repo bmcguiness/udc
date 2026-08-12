@@ -155,7 +155,41 @@ struct DriveDetailView: View {
                 }
 
                 futureSection(title: "Route", message: "Route maps and path summaries will appear here in a future update.")
-                futureSection(title: "Performance", message: "Linked acceleration and distance runs will appear here.")
+
+                if drive.performanceRuns.isEmpty {
+                    futureSection(title: "Performance", message: "Linked acceleration and distance runs will appear here.")
+                } else {
+                    AppCard {
+                        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                            SectionHeader(title: "Performance", subtitle: "\(drive.performanceRuns.count) run(s)")
+                            ForEach(drive.performanceRuns.filter(\.isValid)) { run in
+                                NavigationLink {
+                                    PerformanceDetailView(run: run)
+                                } label: {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(run.launchedAt.formatted(date: .omitted, time: .shortened))
+                                                .font(AppTypography.label())
+                                                .foregroundStyle(Color.appTextPrimary)
+                                            Text(
+                                                run.zeroTo60Seconds.map { String(format: "0–60 %.2f s", $0) }
+                                                    ?? "Launch recorded"
+                                            )
+                                            .font(AppTypography.footnote())
+                                            .foregroundStyle(Color.appTextSecondary)
+                                        }
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                            .font(.system(size: 12, weight: .semibold))
+                                            .foregroundStyle(Color.appTextTertiary)
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+
                 futureSection(title: "Fuel", message: "Economy and cost insights for this drive will appear here.")
                 futureSection(title: "Notes", message: "Personal notes and tags will appear here.")
             }

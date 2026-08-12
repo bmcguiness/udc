@@ -8,8 +8,8 @@ final class DrivingTelemetryService {
     private(set) var state: DrivingState = .idle
     private(set) var diagnostics: DrivingDiagnostics = .empty
 
-    /// Downstream observers (e.g. DrivingEngine) receive normalized state after each update.
-    var onStateUpdate: ((DrivingState) -> Void)?
+    /// Downstream observers receive normalized state after each update (registration order).
+    private var stateObservers: [(UUID, (DrivingState) -> Void)] = []
 
     private let locationProvider: any LocationProviding
     private var smoother = SpeedSmoother()
@@ -22,6 +22,17 @@ final class DrivingTelemetryService {
         self.locationProvider = locationProvider
         bindProvider()
         refreshAuthorizationSurface()
+    }
+
+    @discardableResult
+    func addStateObserver(_ handler: @escaping (DrivingState) -> Void) -> UUID {
+        let id = UUID()
+        stateObservers.append((id, handler))
+        return id
+    }
+
+    func removeStateObserver(_ id: UUID) {
+        stateObservers.removeAll { $0.0 == id }
     }
 
     func start() {
@@ -57,7 +68,7 @@ final class DrivingTelemetryService {
             diagnostics.activeVehicleName = name
             diagnostics.preferredSpeedUnit = speedUnit
         }
-        onStateUpdate?(state)
+        notifyStateObservers()
     }
 
     func updateSessionDiagnostics(
@@ -85,7 +96,41 @@ final class DrivingTelemetryService {
         diagnostics.rejectedSampleCount = rejectedSampleCount
     }
 
+    func updatePerformanceDiagnostics(
+        phase: PerformancePhase,
+        launchDetected: Bool,
+        distanceMeters: Double?,
+        elapsedSeconds: TimeInterval?,
+        reached30: Bool,
+        reached40: Bool,
+        reached60: Bool,
+        reachedEighth: Bool,
+        reachedQuarter: Bool,
+        gpsQualityReady: Bool,
+        isCurrentRunValid: Bool,
+        cancelReason: PerformanceCancelReason?
+    ) {
+        diagnostics.performancePhase = phase
+        diagnostics.performanceLaunchDetected = launchDetected
+        diagnostics.performanceDistanceMeters = distanceMeters
+        diagnostics.performanceElapsedSeconds = elapsedSeconds
+        diagnostics.performanceReached30 = reached30
+        diagnostics.performanceReached40 = reached40
+        diagnostics.performanceReached60 = reached60
+        diagnostics.performanceReachedEighth = reachedEighth
+        diagnostics.performanceReachedQuarter = reachedQuarter
+        diagnostics.performanceGPSQualityReady = gpsQualityReady
+        diagnostics.performanceRunValid = isCurrentRunValid
+        diagnostics.performanceCancelReason = cancelReason
+    }
+
     // MARK: - Private
+
+    private func notifyStateObservers() {
+        for (_, handler) in stateObservers {
+            handler(state)
+        }
+    }
 
     private func bindProvider() {
         locationProvider.onAuthorizationChange = { [weak self] status in
@@ -125,7 +170,7 @@ final class DrivingTelemetryService {
             )
         }
         refreshDiagnosticsMetadata()
-        onStateUpdate?(state)
+        notifyStateObservers()
     }
 
     private func handleSnapshot(_ snapshot: LocationSnapshot) {
@@ -181,7 +226,7 @@ final class DrivingTelemetryService {
         )
 
         updateDiagnostics(snapshot: snapshot, filterResult: filterResult, now: now)
-        onStateUpdate?(state)
+        notifyStateObservers()
     }
 
     private func publishDisplayedSpeed() {
@@ -251,7 +296,19 @@ final class DrivingTelemetryService {
             movementThresholdMetersPerSecond: previous.movementThresholdMetersPerSecond,
             gpsSampleCount: gpsSampleCount,
             acceptedSampleCount: acceptedSampleCount,
-            rejectedSampleCount: rejectedSampleCount
+            rejectedSampleCount: rejectedSampleCount,
+            performancePhase: previous.performancePhase,
+            performanceLaunchDetected: previous.performanceLaunchDetected,
+            performanceDistanceMeters: previous.performanceDistanceMeters,
+            performanceElapsedSeconds: previous.performanceElapsedSeconds,
+            performanceReached30: previous.performanceReached30,
+            performanceReached40: previous.performanceReached40,
+            performanceReached60: previous.performanceReached60,
+            performanceReachedEighth: previous.performanceReachedEighth,
+            performanceReachedQuarter: previous.performanceReachedQuarter,
+            performanceGPSQualityReady: previous.performanceGPSQualityReady,
+            performanceRunValid: previous.performanceRunValid,
+            performanceCancelReason: previous.performanceCancelReason
         )
     }
 }
@@ -291,6 +348,20 @@ struct DrivingDiagnostics: Equatable, Sendable {
     var gpsSampleCount: Int = 0
     var acceptedSampleCount: Int = 0
     var rejectedSampleCount: Int = 0
+
+    // Performance diagnostics
+    var performancePhase: PerformancePhase = .idle
+    var performanceLaunchDetected: Bool = false
+    var performanceDistanceMeters: Double?
+    var performanceElapsedSeconds: TimeInterval?
+    var performanceReached30: Bool = false
+    var performanceReached40: Bool = false
+    var performanceReached60: Bool = false
+    var performanceReachedEighth: Bool = false
+    var performanceReachedQuarter: Bool = false
+    var performanceGPSQualityReady: Bool = false
+    var performanceRunValid: Bool = true
+    var performanceCancelReason: PerformanceCancelReason?
 
     static let empty = DrivingDiagnostics()
 }

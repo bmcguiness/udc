@@ -8,6 +8,7 @@ struct UDCApp: App {
 
     @State private var telemetry: DrivingTelemetryService
     @State private var drivingEngine: DrivingEngine
+    @State private var performanceEngine: PerformanceEngine
 
     private var preferredScheme: ColorScheme? {
         (AppAppearance(rawValue: appearanceRaw) ?? .dark).preferredColorScheme
@@ -15,9 +16,12 @@ struct UDCApp: App {
 
     init() {
         let telemetry = DrivingTelemetryService(locationProvider: CoreLocationProvider())
+        // Register DrivingEngine before PerformanceEngine so session state is current.
         let engine = DrivingEngine(telemetry: telemetry)
+        let performance = PerformanceEngine(telemetry: telemetry, drivingEngine: engine)
         _telemetry = State(initialValue: telemetry)
         _drivingEngine = State(initialValue: engine)
+        _performanceEngine = State(initialValue: performance)
     }
 
     var body: some Scene {
@@ -31,6 +35,7 @@ struct UDCApp: App {
             }
             .environment(telemetry)
             .environment(drivingEngine)
+            .environment(performanceEngine)
             .tint(Color.appAccent)
             .preferredColorScheme(preferredScheme)
         }

@@ -4,6 +4,7 @@ import SwiftUI
 struct DashboardView: View {
     @Environment(DrivingTelemetryService.self) private var telemetry
     @Environment(DrivingEngine.self) private var drivingEngine
+    @Environment(PerformanceEngine.self) private var performanceEngine
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \VehicleProfile.createdAt) private var vehicles: [VehicleProfile]
 
@@ -52,6 +53,7 @@ struct DashboardView: View {
             .toolbarBackground(Color.appBackground, for: .navigationBar)
             .onAppear {
                 drivingEngine.attach(modelContext: modelContext)
+                performanceEngine.attach(modelContext: modelContext)
                 syncVehiclePreferences()
                 telemetry.start()
             }
@@ -144,6 +146,13 @@ struct DashboardView: View {
                     icon: gpsBadgeSymbol(state.gpsStatus),
                     style: gpsBadgeStyle(state.gpsStatus)
                 )
+                if performanceEngine.snapshot.phase == .running || performanceEngine.snapshot.phase == .armed {
+                    StatusBadge(
+                        title: performanceEngine.snapshot.phase == .running ? "Perf" : "Armed",
+                        icon: "stopwatch",
+                        style: performanceEngine.snapshot.phase == .running ? .success : .accent
+                    )
+                }
             }
             .padding(.top, AppSpacing.xs)
         }
@@ -390,6 +399,13 @@ struct DashboardView: View {
             speedUnit: activeVehicle?.preferredSpeedUnit ?? .milesPerHour,
             distanceUnit: activeVehicle?.preferredDistanceUnit ?? .miles
         )
+        performanceEngine.updateActiveVehicle(
+            id: activeVehicle?.id,
+            name: activeVehicle?.name,
+            speedUnit: activeVehicle?.preferredSpeedUnit ?? .milesPerHour,
+            distanceUnit: activeVehicle?.preferredDistanceUnit ?? .miles,
+            bestsJSON: activeVehicle?.performanceBestsJSON
+        )
     }
 
     private func openSystemSettings() {
@@ -434,9 +450,11 @@ struct DashboardView: View {
     provider.setAuthorization(.authorizedWhenInUse)
     let telemetry = DrivingTelemetryService(locationProvider: provider)
     let engine = DrivingEngine(telemetry: telemetry)
+    let performance = PerformanceEngine(telemetry: telemetry, drivingEngine: engine)
     return DashboardView()
         .environment(telemetry)
         .environment(engine)
+        .environment(performance)
         .modelContainer(for: [VehicleProfile.self, DriveRecord.self], inMemory: true)
         .preferredColorScheme(.dark)
 }

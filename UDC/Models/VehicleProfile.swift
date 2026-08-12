@@ -15,15 +15,19 @@ final class VehicleProfile {
     var dataSourceMode: VehicleDataSourceMode
     var createdAt: Date
     var modifiedAt: Date
+    /// JSON-encoded `PerformanceBests` for this vehicle.
+    var performanceBestsJSON: String?
 
     init(id: UUID = UUID(), name: String, year: Int? = nil, make: String? = nil, model: String? = nil,
          category: VehicleCategory = .car, preferredSpeedUnit: SpeedUnit = .milesPerHour,
          preferredDistanceUnit: DistanceUnit = .miles, isActive: Bool = false,
-         dataSourceMode: VehicleDataSourceMode = .gpsOnly, createdAt: Date = .now, modifiedAt: Date = .now) {
+         dataSourceMode: VehicleDataSourceMode = .gpsOnly, createdAt: Date = .now, modifiedAt: Date = .now,
+         performanceBestsJSON: String? = nil) {
         self.id = id; self.name = name; self.year = year; self.make = make; self.model = model
         self.category = category; self.preferredSpeedUnit = preferredSpeedUnit
         self.preferredDistanceUnit = preferredDistanceUnit; self.isActive = isActive
         self.dataSourceMode = dataSourceMode; self.createdAt = createdAt; self.modifiedAt = modifiedAt
+        self.performanceBestsJSON = performanceBestsJSON
     }
 
     static func selectActive(_ selected: VehicleProfile, among vehicles: [VehicleProfile]) {

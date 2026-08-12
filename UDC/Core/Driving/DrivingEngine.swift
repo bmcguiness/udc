@@ -64,7 +64,7 @@ final class DrivingEngine {
     // MARK: - Telemetry
 
     private func bindTelemetry() {
-        telemetry.onStateUpdate = { [weak self] state in
+        telemetry.addStateObserver { [weak self] state in
             self?.handle(state: state)
         }
     }

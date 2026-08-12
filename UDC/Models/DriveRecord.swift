@@ -79,6 +79,10 @@ final class DriveRecord {
     var displayMaximumSpeed: Double {
         speedUnit.value(fromMetersPerSecond: maximumSpeedMetersPerSecond)
     }
+
+    var performanceRuns: [PerformanceRunSummary] {
+        PerformanceAttachment.decode(from: performanceSummaryJSON)
+    }
 }
 
 extension SpeedSource: RawRepresentable {

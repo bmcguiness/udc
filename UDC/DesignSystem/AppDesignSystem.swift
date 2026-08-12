@@ -278,7 +278,7 @@ struct SectionHeader: View {
 // MARK: - Status Badge
 
 struct StatusBadge: View {
-    enum Style {
+    enum Style: Equatable {
         case neutral, success, warning, accent, idle
 
         var foreground: Color {
@@ -759,6 +759,8 @@ struct PerformanceRunCard: View {
     var topSpeed: String? = nil
     var topSpeedUnit: String? = nil
     var symbol: String = "gauge.with.needle"
+    var statusTitle: String = "Ready"
+    var statusStyle: StatusBadge.Style = .accent
     var delay: Double = 0
 
     /// Convenience for time-only runs.
@@ -768,6 +770,8 @@ struct PerformanceRunCard: View {
         value: String,
         unit: String,
         symbol: String = "gauge.with.needle",
+        statusTitle: String = "Ready",
+        statusStyle: StatusBadge.Style = .accent,
         delay: Double = 0
     ) {
         self.title = title
@@ -777,6 +781,8 @@ struct PerformanceRunCard: View {
         self.topSpeed = nil
         self.topSpeedUnit = nil
         self.symbol = symbol
+        self.statusTitle = statusTitle
+        self.statusStyle = statusStyle
         self.delay = delay
     }
 
@@ -788,6 +794,8 @@ struct PerformanceRunCard: View {
         topSpeed: String? = nil,
         topSpeedUnit: String? = nil,
         symbol: String = "gauge.with.needle",
+        statusTitle: String = "Ready",
+        statusStyle: StatusBadge.Style = .accent,
         delay: Double = 0
     ) {
         self.title = title
@@ -797,6 +805,8 @@ struct PerformanceRunCard: View {
         self.topSpeed = topSpeed
         self.topSpeedUnit = topSpeedUnit
         self.symbol = symbol
+        self.statusTitle = statusTitle
+        self.statusStyle = statusStyle
         self.delay = delay
     }
 
@@ -809,7 +819,7 @@ struct PerformanceRunCard: View {
                     .symbolRenderingMode(.hierarchical)
                     .accessibilityHidden(true)
                 Spacer()
-                StatusBadge(title: "Ready", style: .accent)
+                StatusBadge(title: statusTitle, style: statusStyle)
             }
 
             VStack(alignment: .leading, spacing: 4) {

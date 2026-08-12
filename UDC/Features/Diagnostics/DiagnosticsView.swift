@@ -69,6 +69,25 @@ struct DiagnosticsView: View {
                     row("Accepted Samples", "\(diagnostics.acceptedSampleCount)")
                     row("Rejected Samples", "\(diagnostics.rejectedSampleCount)", showsDivider: false)
                 }
+
+                diagnosticsCard(title: "Performance") {
+                    row("Performance State", diagnostics.performancePhase.displayName)
+                    row("Launch Detected", diagnostics.performanceLaunchDetected ? "Yes" : "No")
+                    row("Distance", meters(diagnostics.performanceDistanceMeters))
+                    row("Elapsed", age(diagnostics.performanceElapsedSeconds))
+                    row("30 Reached", diagnostics.performanceReached30 ? "Yes" : "No")
+                    row("40 Reached", diagnostics.performanceReached40 ? "Yes" : "No")
+                    row("60 Reached", diagnostics.performanceReached60 ? "Yes" : "No")
+                    row("1/8 Reached", diagnostics.performanceReachedEighth ? "Yes" : "No")
+                    row("1/4 Reached", diagnostics.performanceReachedQuarter ? "Yes" : "No")
+                    row("GPS Quality", diagnostics.performanceGPSQualityReady ? "Ready" : "Not ready")
+                    row("Run Valid", diagnostics.performanceRunValid ? "Yes" : "No")
+                    row(
+                        "Cancel Reason",
+                        diagnostics.performanceCancelReason?.rawValue ?? "—",
+                        showsDivider: false
+                    )
+                }
             }
             .padding(.horizontal, AppSpacing.md)
             .padding(.top, AppSpacing.sm)
