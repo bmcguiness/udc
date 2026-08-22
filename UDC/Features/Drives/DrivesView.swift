@@ -2,7 +2,11 @@ import SwiftData
 import SwiftUI
 
 struct DrivesView: View {
-    @Query(sort: \DriveRecord.endedAt, order: .reverse) private var drives: [DriveRecord]
+    @Query(
+        filter: #Predicate<DriveRecord> { $0.isInProgress == false },
+        sort: \DriveRecord.endedAt,
+        order: .reverse
+    ) private var drives: [DriveRecord]
 
     var body: some View {
         NavigationStack {

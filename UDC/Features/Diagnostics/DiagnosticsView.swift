@@ -70,6 +70,38 @@ struct DiagnosticsView: View {
                     row("Rejected Samples", "\(diagnostics.rejectedSampleCount)", showsDivider: false)
                 }
 
+                diagnosticsCard(title: "Reliability") {
+                    row("App Lifecycle", diagnostics.appLifecycleState)
+                    row("Background Location", diagnostics.backgroundLocationEnabled ? "Yes" : "No")
+                    row("Idle Timer Disabled", diagnostics.idleTimerDisabled ? "Yes" : "No")
+                    row("Session Phase", diagnostics.sessionPhase.displayName)
+                    row("Active Drive ID", diagnostics.activeDriveRecordID?.uuidString ?? "—")
+                    row("Active Record Persisted", diagnostics.activeRecordPersisted ? "Yes" : "No")
+                    row("Finalized", diagnostics.activeDriveFinalized ? "Yes" : "No")
+                    row("Last Checkpoint", timestamp(diagnostics.lastCheckpointAt))
+                    row("Checkpoint Reason", diagnostics.checkpointReason?.rawValue ?? "—")
+                    row("Last Valid Location", timestamp(diagnostics.lastValidLocationAt))
+                    row(
+                        "Last Valid Coordinate",
+                        coordinate(diagnostics.lastValidLatitude, diagnostics.lastValidLongitude)
+                    )
+                    row("Distance", meters(diagnostics.sessionDistanceMeters))
+                    row("Drive Time", age(diagnostics.sessionDurationSeconds))
+                    row("Average Speed", mps(diagnostics.sessionAverageSpeedMetersPerSecond))
+                    row("Max Speed", mps(diagnostics.sessionMaximumSpeedMetersPerSecond))
+                    row("Last Foreground", timestamp(diagnostics.lastForegroundTransitionAt))
+                    row("Last Background", timestamp(diagnostics.lastBackgroundTransitionAt))
+                    row("Recovered Session", diagnostics.recoveredSession ? "Yes" : "No")
+                    row("Recovery Reason", diagnostics.recoveryReason.rawValue)
+                    row("Finalization Reason", diagnostics.finalizationReason?.rawValue ?? "—")
+                    row("Active Vehicle", diagnostics.activeVehicleName ?? "—")
+                    row(
+                        "Location Authorization",
+                        diagnostics.authorizationStatus.displayName,
+                        showsDivider: false
+                    )
+                }
+
                 diagnosticsCard(title: "Performance") {
                     row("Performance State", diagnostics.performancePhase.displayName)
                     row("Launch Detected", diagnostics.performanceLaunchDetected ? "Yes" : "No")
@@ -152,6 +184,11 @@ struct DiagnosticsView: View {
     private func age(_ seconds: TimeInterval?) -> String {
         guard let seconds else { return "—" }
         return String(format: "%.2f s", seconds)
+    }
+
+    private func coordinate(_ lat: Double?, _ lon: Double?) -> String {
+        guard let lat, let lon else { return "—" }
+        return String(format: "%.5f, %.5f", lat, lon)
     }
 }
 

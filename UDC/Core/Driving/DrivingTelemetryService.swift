@@ -56,6 +56,67 @@ final class DrivingTelemetryService {
         locationProvider.requestWhenInUseAuthorization()
     }
 
+    func ensureUpdating() {
+        locationProvider.refreshAuthorizationStatus()
+        if locationProvider.authorizationStatus.allowsLocationUpdates {
+            locationProvider.startUpdating()
+        }
+    }
+
+    var isBackgroundLocationUpdatesEnabled: Bool {
+        locationProvider.isBackgroundLocationUpdatesEnabled
+    }
+
+    func setBackgroundLocationUpdatesEnabled(_ enabled: Bool) {
+        locationProvider.setBackgroundLocationUpdatesEnabled(enabled)
+        diagnostics.backgroundLocationEnabled = enabled
+    }
+
+    func noteForegroundTransition() {
+        diagnostics.lastForegroundTransitionAt = .now
+        diagnostics.appLifecycleState = "active"
+    }
+
+    func noteBackgroundTransition() {
+        diagnostics.lastBackgroundTransitionAt = .now
+        diagnostics.appLifecycleState = "background"
+    }
+
+    func updateLifecycleDiagnostics(scenePhaseLabel: String, idleTimerDisabled: Bool) {
+        diagnostics.appLifecycleState = scenePhaseLabel
+        diagnostics.idleTimerDisabled = idleTimerDisabled
+    }
+
+    func updateReliabilityDiagnostics(
+        backgroundLocationEnabled: Bool,
+        idleTimerDisabled: Bool,
+        activeDriveRecordID: UUID?,
+        activeRecordPersisted: Bool,
+        finalized: Bool,
+        lastCheckpointAt: Date?,
+        checkpointReason: DriveCheckpointReason?,
+        lastValidLocationAt: Date?,
+        lastValidLatitude: Double?,
+        lastValidLongitude: Double?,
+        recoveredSession: Bool,
+        recoveryReason: DriveRecoveryReason,
+        finalizationReason: DriveSessionEndReason?
+    ) {
+        diagnostics.backgroundLocationEnabled = backgroundLocationEnabled
+        diagnostics.idleTimerDisabled = idleTimerDisabled
+        diagnostics.activeDriveRecordID = activeDriveRecordID
+        diagnostics.activeRecordPersisted = activeRecordPersisted
+        diagnostics.activeDriveFinalized = finalized
+        diagnostics.lastCheckpointAt = lastCheckpointAt
+        diagnostics.checkpointReason = checkpointReason
+        diagnostics.lastValidLocationAt = lastValidLocationAt
+        diagnostics.lastValidLatitude = lastValidLatitude
+        diagnostics.lastValidLongitude = lastValidLongitude
+        diagnostics.recoveredSession = recoveredSession
+        diagnostics.recoveryReason = recoveryReason
+        diagnostics.finalizationReason = finalizationReason
+    }
+
     func updateActiveVehicle(name: String?, speedUnit: SpeedUnit) {
         let unitChanged = state.preferredSpeedUnit != speedUnit
         state.activeVehicleName = name
@@ -308,7 +369,23 @@ final class DrivingTelemetryService {
             performanceReachedQuarter: previous.performanceReachedQuarter,
             performanceGPSQualityReady: previous.performanceGPSQualityReady,
             performanceRunValid: previous.performanceRunValid,
-            performanceCancelReason: previous.performanceCancelReason
+            performanceCancelReason: previous.performanceCancelReason,
+            appLifecycleState: previous.appLifecycleState,
+            backgroundLocationEnabled: previous.backgroundLocationEnabled,
+            idleTimerDisabled: previous.idleTimerDisabled,
+            activeDriveRecordID: previous.activeDriveRecordID,
+            activeRecordPersisted: previous.activeRecordPersisted,
+            activeDriveFinalized: previous.activeDriveFinalized,
+            lastCheckpointAt: previous.lastCheckpointAt,
+            checkpointReason: previous.checkpointReason,
+            lastValidLocationAt: previous.lastValidLocationAt,
+            lastValidLatitude: previous.lastValidLatitude,
+            lastValidLongitude: previous.lastValidLongitude,
+            lastForegroundTransitionAt: previous.lastForegroundTransitionAt,
+            lastBackgroundTransitionAt: previous.lastBackgroundTransitionAt,
+            recoveredSession: previous.recoveredSession,
+            recoveryReason: previous.recoveryReason,
+            finalizationReason: previous.finalizationReason
         )
     }
 }
@@ -362,6 +439,24 @@ struct DrivingDiagnostics: Equatable, Sendable {
     var performanceGPSQualityReady: Bool = false
     var performanceRunValid: Bool = true
     var performanceCancelReason: PerformanceCancelReason?
+
+    // Reliability / lifecycle diagnostics
+    var appLifecycleState: String = "unknown"
+    var backgroundLocationEnabled: Bool = false
+    var idleTimerDisabled: Bool = false
+    var activeDriveRecordID: UUID?
+    var activeRecordPersisted: Bool = false
+    var activeDriveFinalized: Bool = true
+    var lastCheckpointAt: Date?
+    var checkpointReason: DriveCheckpointReason?
+    var lastValidLocationAt: Date?
+    var lastValidLatitude: Double?
+    var lastValidLongitude: Double?
+    var lastForegroundTransitionAt: Date?
+    var lastBackgroundTransitionAt: Date?
+    var recoveredSession: Bool = false
+    var recoveryReason: DriveRecoveryReason = .none
+    var finalizationReason: DriveSessionEndReason?
 
     static let empty = DrivingDiagnostics()
 }

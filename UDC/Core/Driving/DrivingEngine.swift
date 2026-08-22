@@ -1,8 +1,9 @@
 import Foundation
 import Observation
 import SwiftData
+import SwiftUI
 
-/// Observes `DrivingTelemetryService`, detects sessions, accumulates trip stats, and persists completed drives.
+/// Observes `DrivingTelemetryService`, detects sessions, checkpoints durable progress, and finalizes drives.
 @Observable
 @MainActor
 final class DrivingEngine {
@@ -10,6 +11,7 @@ final class DrivingEngine {
 
     private let telemetry: DrivingTelemetryService
     private let configuration: DriveSessionConfiguration
+    private let durability: DriveDurabilityConfiguration
     private var modelContext: ModelContext?
 
     private var activeVehicleID: UUID?
@@ -27,18 +29,34 @@ final class DrivingEngine {
     private var liveTrip: LiveTrip?
     private var phase: DriveSessionPhase = .idle
 
+    private var lastCheckpointAt: Date?
+    private var distanceAtLastCheckpoint: Double = 0
+    private var lastCheckpointReason: DriveCheckpointReason?
+    private var activeRecordPersisted: Bool = false
+    private var recoveredSession: Bool = false
+    private var recoveryReason: DriveRecoveryReason = .none
+    private var didRunRecovery: Bool = false
+
     init(
         telemetry: DrivingTelemetryService,
-        configuration: DriveSessionConfiguration = .init()
+        configuration: DriveSessionConfiguration = .init(),
+        durability: DriveDurabilityConfiguration = .init()
     ) {
         self.telemetry = telemetry
         self.configuration = configuration
+        self.durability = durability
         snapshot.movementThresholdMetersPerSecond = configuration.startSpeedMetersPerSecond
         bindTelemetry()
     }
 
     func attach(modelContext: ModelContext) {
         self.modelContext = modelContext
+        if !didRunRecovery {
+            didRunRecovery = true
+            recoverInProgressDrivesIfNeeded()
+        }
+        syncBackgroundLocationPolicy()
+        publishSnapshot()
     }
 
     func updateActiveVehicle(
@@ -57,6 +75,31 @@ final class DrivingEngine {
             trip.preferredSpeedUnit = speedUnit
             trip.preferredDistanceUnit = distanceUnit
             liveTrip = trip
+        }
+        publishSnapshot()
+    }
+
+    /// App-wide scene lifecycle hook (idle timer is owned by the app; this handles durability + GPS).
+    func handleScenePhase(_ scenePhase: ScenePhase) {
+        switch scenePhase {
+        case .active:
+            telemetry.noteForegroundTransition()
+            syncBackgroundLocationPolicy()
+            if phase.isActivelyRecording {
+                telemetry.ensureUpdating()
+            }
+        case .inactive:
+            break
+        case .background:
+            telemetry.noteBackgroundTransition()
+            if phase.isActivelyRecording {
+                checkpoint(reason: .enteredBackground, force: true)
+                syncBackgroundLocationPolicy()
+            } else {
+                syncBackgroundLocationPolicy()
+            }
+        @unknown default:
+            break
         }
         publishSnapshot()
     }
@@ -91,6 +134,7 @@ final class DrivingEngine {
 
         let speed = filtered ?? 0
         let now = state.timestamp ?? .now
+        let previousPhase = phase
         accumulateDistanceIfNeeded(state: state, now: now)
 
         switch phase {
@@ -115,6 +159,15 @@ final class DrivingEngine {
             }
         }
 
+        if phase != previousPhase, phase.isActivelyRecording || previousPhase.isActivelyRecording {
+            if phase.isActivelyRecording {
+                checkpoint(reason: .phaseTransition, force: true)
+            }
+            syncBackgroundLocationPolicy()
+        } else if phase.isActivelyRecording {
+            maybeCheckpoint(now: now)
+        }
+
         publishSnapshot()
     }
 
@@ -129,7 +182,6 @@ final class DrivingEngine {
 
     private func considerStart(speed: Double, now: Date) {
         if speed < configuration.startSpeedMetersPerSecond * 0.6 {
-            // Fell back to near-stop before commitment — abort prepare.
             resetToIdle(reason: nil)
             return
         }
@@ -164,9 +216,14 @@ final class DrivingEngine {
         preparingSince = nil
         stoppedSince = nil
         preparingDistanceMeters = 0
+        recoveredSession = false
+        recoveryReason = .none
         snapshot.startReason = reason
         snapshot.endReason = nil
         snapshot.lastCompletedTripID = nil
+        distanceAtLastCheckpoint = trip.distanceMeters
+        checkpoint(reason: .sessionStarted, force: true)
+        syncBackgroundLocationPolicy()
     }
 
     private func updateLiveTrip(speed: Double) {
@@ -192,10 +249,11 @@ final class DrivingEngine {
             && duration >= configuration.minimumPersistDuration
 
         if meetsFloor {
-            persist(trip: trip, endedAt: end)
+            finalizeActiveRecord(trip: trip, endedAt: end, reason: reason)
             snapshot.lastCompletedTripID = trip.id
             snapshot.endReason = reason
         } else {
+            discardActiveRecord(id: trip.id)
             snapshot.endReason = .discardedTooShort
         }
 
@@ -206,6 +264,10 @@ final class DrivingEngine {
         preparingDistanceMeters = 0
         lastAcceptedCoordinate = nil
         lastAcceptedTimestamp = nil
+        lastCheckpointAt = nil
+        activeRecordPersisted = false
+        recoveredSession = false
+        syncBackgroundLocationPolicy()
         publishSnapshot()
     }
 
@@ -217,9 +279,12 @@ final class DrivingEngine {
         preparingDistanceMeters = 0
         lastAcceptedCoordinate = nil
         lastAcceptedTimestamp = nil
+        lastCheckpointAt = nil
+        activeRecordPersisted = false
         if let reason {
             snapshot.endReason = reason
         }
+        syncBackgroundLocationPolicy()
         publishSnapshot()
     }
 
@@ -240,7 +305,6 @@ final class DrivingEngine {
               accuracy <= configuration.maxHorizontalAccuracyMeters else {
             return
         }
-        // Only accumulate while preparing or actively recording.
         guard phase == .preparing || phase.isActivelyRecording else {
             lastAcceptedCoordinate = (lat, lon)
             lastAcceptedTimestamp = now
@@ -284,32 +348,264 @@ final class DrivingEngine {
         }
     }
 
-    // MARK: - Persistence
+    // MARK: - Durability
 
-    private func persist(trip: LiveTrip, endedAt: Date) {
+    private func maybeCheckpoint(now: Date) {
+        guard let trip = liveTrip else { return }
+        let timed = lastCheckpointAt.map { now.timeIntervalSince($0) >= durability.checkpointMinimumInterval } ?? true
+        let distanceDelta = trip.distanceMeters - distanceAtLastCheckpoint
+        let movedEnough = distanceDelta >= durability.checkpointMinimumDistanceMeters
+        if timed {
+            checkpoint(reason: .timedInterval, force: false)
+        } else if movedEnough {
+            checkpoint(reason: .distanceInterval, force: false)
+        }
+    }
+
+    private func checkpoint(reason: DriveCheckpointReason, force: Bool) {
+        guard let trip = liveTrip, let modelContext else { return }
+        let now = lastAcceptedTimestamp ?? Date.now
+        if !force, let lastCheckpointAt,
+           now.timeIntervalSince(lastCheckpointAt) < durability.checkpointMinimumInterval,
+           reason == .timedInterval {
+            return
+        }
+
+        let duration = max(0, now.timeIntervalSince(trip.startedAt))
+        let average = TripMath.averageSpeedMetersPerSecond(
+            distanceMeters: trip.distanceMeters,
+            durationSeconds: duration
+        )
+
+        if let record = fetchRecord(id: trip.id) {
+            applyTrip(trip, to: record, endedAt: now, finalized: false, reason: reason)
+            record.averageSpeedMetersPerSecond = average
+        } else {
+            let record = DriveRecord(
+                id: trip.id,
+                vehicleID: trip.vehicleID,
+                vehicleName: trip.vehicleName,
+                startedAt: trip.startedAt,
+                endedAt: now,
+                distanceMeters: trip.distanceMeters,
+                durationSeconds: duration,
+                averageSpeedMetersPerSecond: average,
+                maximumSpeedMetersPerSecond: trip.maximumSpeedMetersPerSecond,
+                speedUnit: trip.preferredSpeedUnit,
+                distanceUnit: trip.preferredDistanceUnit,
+                speedSource: trip.speedSource,
+                isFinalized: false,
+                sessionPhase: phase,
+                lastValidLatitude: lastAcceptedCoordinate?.lat,
+                lastValidLongitude: lastAcceptedCoordinate?.lon,
+                lastValidLocationAt: lastAcceptedTimestamp,
+                lastCheckpointAt: now,
+                checkpointReason: reason,
+                recoveredFromInterruption: recoveredSession
+            )
+            modelContext.insert(record)
+        }
+
+        try? modelContext.save()
+        lastCheckpointAt = now
+        distanceAtLastCheckpoint = trip.distanceMeters
+        lastCheckpointReason = reason
+        activeRecordPersisted = true
+    }
+
+    private func finalizeActiveRecord(trip: LiveTrip, endedAt: Date, reason: DriveSessionEndReason) {
         guard let modelContext else { return }
         let duration = max(0, endedAt.timeIntervalSince(trip.startedAt))
         let average = TripMath.averageSpeedMetersPerSecond(
             distanceMeters: trip.distanceMeters,
             durationSeconds: duration
         )
-        let record = DriveRecord(
-            id: trip.id,
-            vehicleID: trip.vehicleID,
-            vehicleName: trip.vehicleName,
-            startedAt: trip.startedAt,
-            endedAt: endedAt,
-            distanceMeters: trip.distanceMeters,
-            durationSeconds: duration,
-            averageSpeedMetersPerSecond: average,
-            maximumSpeedMetersPerSecond: trip.maximumSpeedMetersPerSecond,
-            speedUnit: trip.preferredSpeedUnit,
-            distanceUnit: trip.preferredDistanceUnit,
-            speedSource: trip.speedSource
-        )
-        modelContext.insert(record)
+
+        if let record = fetchRecord(id: trip.id) {
+            applyTrip(trip, to: record, endedAt: endedAt, finalized: true, reason: .finalized)
+            record.averageSpeedMetersPerSecond = average
+            record.durationSeconds = duration
+        } else {
+            let record = DriveRecord(
+                id: trip.id,
+                vehicleID: trip.vehicleID,
+                vehicleName: trip.vehicleName,
+                startedAt: trip.startedAt,
+                endedAt: endedAt,
+                distanceMeters: trip.distanceMeters,
+                durationSeconds: duration,
+                averageSpeedMetersPerSecond: average,
+                maximumSpeedMetersPerSecond: trip.maximumSpeedMetersPerSecond,
+                speedUnit: trip.preferredSpeedUnit,
+                distanceUnit: trip.preferredDistanceUnit,
+                speedSource: trip.speedSource,
+                isFinalized: true,
+                sessionPhase: .idle,
+                lastValidLatitude: lastAcceptedCoordinate?.lat,
+                lastValidLongitude: lastAcceptedCoordinate?.lon,
+                lastValidLocationAt: lastAcceptedTimestamp ?? endedAt,
+                lastCheckpointAt: endedAt,
+                checkpointReason: .finalized,
+                recoveredFromInterruption: recoveredSession
+            )
+            modelContext.insert(record)
+        }
         try? modelContext.save()
+        lastCheckpointReason = .finalized
+        activeRecordPersisted = true
+        snapshot.endReason = reason
     }
+
+    private func discardActiveRecord(id: UUID) {
+        guard let modelContext, let record = fetchRecord(id: id), !record.isFinalized else { return }
+        modelContext.delete(record)
+        try? modelContext.save()
+        activeRecordPersisted = false
+    }
+
+    private func applyTrip(
+        _ trip: LiveTrip,
+        to record: DriveRecord,
+        endedAt: Date,
+        finalized: Bool,
+        reason: DriveCheckpointReason
+    ) {
+        record.vehicleID = trip.vehicleID
+        record.vehicleName = trip.vehicleName
+        record.startedAt = trip.startedAt
+        record.endedAt = endedAt
+        record.distanceMeters = trip.distanceMeters
+        record.durationSeconds = max(0, endedAt.timeIntervalSince(trip.startedAt))
+        record.maximumSpeedMetersPerSecond = trip.maximumSpeedMetersPerSecond
+        record.speedUnitRaw = trip.preferredSpeedUnit.rawValue
+        record.distanceUnitRaw = trip.preferredDistanceUnit.rawValue
+        record.speedSourceRaw = trip.speedSource.rawValue
+        record.isFinalized = finalized
+        record.sessionPhaseRaw = DriveRecord.phaseRaw(from: finalized ? .idle : phase)
+        record.lastValidLatitude = lastAcceptedCoordinate?.lat
+        record.lastValidLongitude = lastAcceptedCoordinate?.lon
+        record.lastValidLocationAt = lastAcceptedTimestamp ?? endedAt
+        record.lastCheckpointAt = Date.now
+        record.checkpointReasonRaw = reason.rawValue
+        if recoveredSession {
+            record.recoveredFromInterruption = true
+        }
+    }
+
+    private func fetchRecord(id: UUID) -> DriveRecord? {
+        guard let modelContext else { return nil }
+        var descriptor = FetchDescriptor<DriveRecord>(predicate: #Predicate { $0.id == id })
+        descriptor.fetchLimit = 1
+        return try? modelContext.fetch(descriptor).first
+    }
+
+    private func recoverInProgressDrivesIfNeeded() {
+        guard let modelContext else { return }
+        let descriptor = FetchDescriptor<DriveRecord>(
+            predicate: #Predicate { $0.isInProgress == true },
+            sortBy: [SortDescriptor(\.lastCheckpointAt, order: .reverse)]
+        )
+        guard let open = try? modelContext.fetch(descriptor), !open.isEmpty else {
+            recoveryReason = .none
+            return
+        }
+
+        // Keep only the newest open drive; discard/finalize older orphans.
+        let newest = open[0]
+        for orphan in open.dropFirst() {
+            finalizeOrDiscardStale(orphan, now: .now)
+        }
+
+        let reference = newest.lastValidLocationAt ?? newest.lastCheckpointAt ?? newest.endedAt
+        let age = Date.now.timeIntervalSince(reference)
+        if age <= durability.resumeIfUpdatedWithin {
+            resume(from: newest)
+            recoveryReason = .resumedRecent
+            recoveredSession = true
+        } else {
+            finalizeOrDiscardStale(newest, now: .now)
+        }
+    }
+
+    private func resume(from record: DriveRecord) {
+        let trip = LiveTrip(
+            id: record.id,
+            vehicleID: record.vehicleID,
+            vehicleName: record.vehicleName,
+            startedAt: record.startedAt,
+            distanceMeters: record.distanceMeters,
+            maximumSpeedMetersPerSecond: record.maximumSpeedMetersPerSecond,
+            preferredSpeedUnit: record.speedUnit,
+            preferredDistanceUnit: record.distanceUnit,
+            speedSource: record.speedSource
+        )
+        liveTrip = trip
+        if let saved = record.persistedSessionPhase, saved.isActivelyRecording {
+            phase = saved
+        } else {
+            phase = .driving
+        }
+        if phase == .stopped {
+            stoppedSince = record.lastValidLocationAt
+        }
+        if let lat = record.lastValidLatitude, let lon = record.lastValidLongitude {
+            lastAcceptedCoordinate = (lat, lon)
+            lastAcceptedTimestamp = record.lastValidLocationAt
+        }
+        activeVehicleID = record.vehicleID ?? activeVehicleID
+        activeVehicleName = record.vehicleName
+        preferredSpeedUnit = record.speedUnit
+        preferredDistanceUnit = record.distanceUnit
+        lastCheckpointAt = record.lastCheckpointAt
+        distanceAtLastCheckpoint = record.distanceMeters
+        lastCheckpointReason = .recovery
+        activeRecordPersisted = true
+        recoveredSession = true
+        checkpoint(reason: .recovery, force: true)
+        syncBackgroundLocationPolicy()
+        telemetry.ensureUpdating()
+    }
+
+    private func finalizeOrDiscardStale(_ record: DriveRecord, now: Date) {
+        var end = record.lastValidLocationAt ?? record.lastCheckpointAt ?? record.endedAt
+        if end < record.startedAt {
+            end = record.startedAt
+        }
+        let duration = max(0, end.timeIntervalSince(record.startedAt))
+        let meetsFloor = record.distanceMeters >= configuration.minimumPersistDistanceMeters
+            && duration >= configuration.minimumPersistDuration
+        guard let modelContext else { return }
+
+        if meetsFloor {
+            record.isFinalized = true
+            record.endedAt = end
+            record.durationSeconds = duration
+            record.averageSpeedMetersPerSecond = TripMath.averageSpeedMetersPerSecond(
+                distanceMeters: record.distanceMeters,
+                durationSeconds: duration
+            )
+            record.sessionPhaseRaw = DriveRecord.phaseRaw(from: .idle)
+            record.lastCheckpointAt = now
+            record.checkpointReasonRaw = DriveCheckpointReason.staleFinalization.rawValue
+            record.recoveredFromInterruption = true
+            try? modelContext.save()
+            snapshot.lastCompletedTripID = record.id
+            snapshot.endReason = .staleRecovery
+            recoveryReason = .finalizedStale
+            lastCheckpointReason = .staleFinalization
+        } else {
+            modelContext.delete(record)
+            try? modelContext.save()
+            recoveryReason = .discardedStaleTooShort
+        }
+    }
+
+    private func syncBackgroundLocationPolicy() {
+        let enabled = BackgroundLocationPolicy.shouldEnableBackgroundUpdates(phase: phase)
+        telemetry.setBackgroundLocationUpdatesEnabled(enabled)
+    }
+
+    // MARK: - Snapshot / diagnostics
 
     private func publishSnapshot() {
         let now = Date.now
@@ -317,14 +613,23 @@ final class DrivingEngine {
         next.phase = phase
         next.liveTrip = liveTrip
         next.movementThresholdMetersPerSecond = configuration.startSpeedMetersPerSecond
+        next.activeDriveRecordID = liveTrip?.id
+        next.activeRecordPersisted = activeRecordPersisted
+        next.isFinalized = liveTrip == nil
+        next.lastCheckpointAt = lastCheckpointAt
+        next.lastCheckpointReason = lastCheckpointReason
+        next.lastValidLocationAt = lastAcceptedTimestamp
+        next.lastValidLatitude = lastAcceptedCoordinate?.lat
+        next.lastValidLongitude = lastAcceptedCoordinate?.lon
+        next.recoveredSession = recoveredSession
+        next.recoveryReason = recoveryReason
+        next.backgroundLocationEnabled = telemetry.isBackgroundLocationUpdatesEnabled
         if let trip = liveTrip {
-            // Refresh computed view of live trip for observers.
             next.liveTrip = trip
             _ = trip.duration(at: now)
         }
         snapshot = next
 
-        // Mirror into telemetry diagnostics for the Diagnostics screen.
         telemetry.updateSessionDiagnostics(
             phase: phase,
             liveTrip: liveTrip,
@@ -334,6 +639,21 @@ final class DrivingEngine {
             gpsSampleCount: snapshot.gpsSampleCount,
             acceptedSampleCount: snapshot.acceptedSampleCount,
             rejectedSampleCount: snapshot.rejectedSampleCount
+        )
+        telemetry.updateReliabilityDiagnostics(
+            backgroundLocationEnabled: snapshot.backgroundLocationEnabled,
+            idleTimerDisabled: IdleTimerController.isIdleTimerDisabled,
+            activeDriveRecordID: snapshot.activeDriveRecordID,
+            activeRecordPersisted: snapshot.activeRecordPersisted,
+            finalized: liveTrip == nil ? true : false,
+            lastCheckpointAt: snapshot.lastCheckpointAt,
+            checkpointReason: snapshot.lastCheckpointReason,
+            lastValidLocationAt: snapshot.lastValidLocationAt,
+            lastValidLatitude: snapshot.lastValidLatitude,
+            lastValidLongitude: snapshot.lastValidLongitude,
+            recoveredSession: snapshot.recoveredSession,
+            recoveryReason: snapshot.recoveryReason,
+            finalizationReason: snapshot.endReason
         )
     }
 }

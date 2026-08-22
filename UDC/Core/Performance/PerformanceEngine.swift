@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import SwiftData
+import SwiftUI
 
 /// Times acceleration / distance runs from filtered telemetry + DrivingEngine trip distance.
 @Observable
@@ -46,6 +47,22 @@ final class PerformanceEngine {
 
     func attach(modelContext: ModelContext) {
         self.modelContext = modelContext
+    }
+
+    /// Cancel an in-progress timing run on interruption — do not save unreliable results.
+    func handleScenePhase(_ scenePhase: ScenePhase) {
+        switch scenePhase {
+        case .background:
+            if phase == .running {
+                cancelRun(reason: .interrupted, at: .now)
+                publishSnapshot()
+                pushDiagnostics(state: telemetry.state)
+            }
+        case .active, .inactive:
+            break
+        @unknown default:
+            break
+        }
     }
 
     func updateActiveVehicle(
@@ -334,6 +351,8 @@ final class PerformanceEngine {
     private func bufferPending(_ summary: PerformanceRunSummary) {
         guard let tripID = summary.driveRecordID else { return }
         pendingRunsByTripID[tripID, default: []].append(summary)
+        // Attach immediately to the durable in-progress DriveRecord when present.
+        attach(runs: [summary], toDriveID: tripID)
     }
 
     private func flushCompletedDriveAttachmentsIfNeeded() {
@@ -351,7 +370,10 @@ final class PerformanceEngine {
         guard let record = try? modelContext.fetch(descriptor).first else { return }
 
         var existing = PerformanceAttachment.decode(from: record.performanceSummaryJSON)
-        existing.append(contentsOf: runs)
+        let existingIDs = Set(existing.map(\.id))
+        let fresh = runs.filter { !existingIDs.contains($0.id) }
+        guard !fresh.isEmpty else { return }
+        existing.append(contentsOf: fresh)
         record.performanceSummaryJSON = PerformanceAttachment.encode(existing)
         try? modelContext.save()
     }

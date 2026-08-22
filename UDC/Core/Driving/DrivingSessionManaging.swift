@@ -35,6 +35,8 @@ enum DriveSessionEndReason: String, Equatable, Sendable {
     case discardedTooShort = "Discarded (too short)"
     case manual = "Manual"
     case authorizationLost = "Authorization lost"
+    case interrupted = "Interrupted"
+    case staleRecovery = "Stale recovery finalize"
 }
 
 /// Tunable session / distance thresholds. Internal for now — not user-facing settings.
@@ -95,6 +97,19 @@ struct DrivingEngineSnapshot: Equatable, Sendable {
     var acceptedSampleCount: Int = 0
     var rejectedSampleCount: Int = 0
     var lastCompletedTripID: UUID?
+
+    // Durability / lifecycle diagnostics surfaces
+    var activeDriveRecordID: UUID?
+    var activeRecordPersisted: Bool = false
+    var isFinalized: Bool = true
+    var lastCheckpointAt: Date?
+    var lastCheckpointReason: DriveCheckpointReason?
+    var lastValidLocationAt: Date?
+    var lastValidLatitude: Double?
+    var lastValidLongitude: Double?
+    var recoveredSession: Bool = false
+    var recoveryReason: DriveRecoveryReason = .none
+    var backgroundLocationEnabled: Bool = false
 
     var currentDistanceMeters: Double { liveTrip?.distanceMeters ?? 0 }
     var currentMaxSpeedMetersPerSecond: Double { liveTrip?.maximumSpeedMetersPerSecond ?? 0 }

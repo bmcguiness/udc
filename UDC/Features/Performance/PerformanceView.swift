@@ -7,7 +7,11 @@ struct PerformanceView: View {
     @Environment(DrivingTelemetryService.self) private var telemetry
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \VehicleProfile.createdAt) private var vehicles: [VehicleProfile]
-    @Query(sort: \DriveRecord.endedAt, order: .reverse) private var drives: [DriveRecord]
+    @Query(
+        filter: #Predicate<DriveRecord> { $0.isInProgress == false },
+        sort: \DriveRecord.endedAt,
+        order: .reverse
+    ) private var drives: [DriveRecord]
 
     private var activeVehicle: VehicleProfile? {
         vehicles.first(where: \.isActive) ?? vehicles.first

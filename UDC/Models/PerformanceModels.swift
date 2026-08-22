@@ -27,6 +27,7 @@ enum PerformanceCancelReason: String, Equatable, Sendable, Codable {
     case poorGPS = "Poor GPS"
     case invalidLaunch = "Invalid launch"
     case discarded = "Discarded"
+    case interrupted = "Interrupted"
 }
 
 enum PerformanceCompletionReason: String, Equatable, Sendable, Codable {

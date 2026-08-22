@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-/// Persisted completed drive. Future route/performance/fuel payloads can attach without reshaping core stats.
+/// Persisted drive. In-progress rows (`isFinalized == false`) are durable checkpoints; history shows finalized only.
 @Model
 final class DriveRecord {
     @Attribute(.unique) var id: UUID
@@ -17,6 +17,17 @@ final class DriveRecord {
     var distanceUnitRaw: String
     var speedSourceRaw: String
     var createdAt: Date
+
+    /// `true` while the drive is active / recoverable; `false` for Drive History entries.
+    /// Defaults to `false` so legacy completed rows remain visible after schema migration.
+    var isInProgress: Bool = false
+    var sessionPhaseRaw: String?
+    var lastValidLatitude: Double?
+    var lastValidLongitude: Double?
+    var lastValidLocationAt: Date?
+    var lastCheckpointAt: Date?
+    var checkpointReasonRaw: String?
+    var recoveredFromInterruption: Bool = false
 
     /// Reserved for future polyline / waypoint summaries.
     var routeSummaryJSON: String?
@@ -39,7 +50,15 @@ final class DriveRecord {
         speedUnit: SpeedUnit,
         distanceUnit: DistanceUnit,
         speedSource: SpeedSource,
-        createdAt: Date = .now
+        createdAt: Date = .now,
+        isFinalized: Bool = true,
+        sessionPhase: DriveSessionPhase? = nil,
+        lastValidLatitude: Double? = nil,
+        lastValidLongitude: Double? = nil,
+        lastValidLocationAt: Date? = nil,
+        lastCheckpointAt: Date? = nil,
+        checkpointReason: DriveCheckpointReason? = nil,
+        recoveredFromInterruption: Bool = false
     ) {
         self.id = id
         self.vehicleID = vehicleID
@@ -54,6 +73,19 @@ final class DriveRecord {
         self.distanceUnitRaw = distanceUnit.rawValue
         self.speedSourceRaw = speedSource.rawValue
         self.createdAt = createdAt
+        self.isInProgress = !isFinalized
+        self.sessionPhaseRaw = sessionPhase.map(Self.phaseRaw(from:))
+        self.lastValidLatitude = lastValidLatitude
+        self.lastValidLongitude = lastValidLongitude
+        self.lastValidLocationAt = lastValidLocationAt
+        self.lastCheckpointAt = lastCheckpointAt
+        self.checkpointReasonRaw = checkpointReason?.rawValue
+        self.recoveredFromInterruption = recoveredFromInterruption
+    }
+
+    var isFinalized: Bool {
+        get { !isInProgress }
+        set { isInProgress = !newValue }
     }
 
     var speedUnit: SpeedUnit {
@@ -82,6 +114,30 @@ final class DriveRecord {
 
     var performanceRuns: [PerformanceRunSummary] {
         PerformanceAttachment.decode(from: performanceSummaryJSON)
+    }
+
+    var persistedSessionPhase: DriveSessionPhase? {
+        guard let sessionPhaseRaw else { return nil }
+        return Self.phase(fromRaw: sessionPhaseRaw)
+    }
+
+    static func phaseRaw(from phase: DriveSessionPhase) -> String {
+        switch phase {
+        case .idle: "idle"
+        case .preparing: "preparing"
+        case .driving: "driving"
+        case .stopped: "stopped"
+        }
+    }
+
+    static func phase(fromRaw raw: String) -> DriveSessionPhase? {
+        switch raw {
+        case "idle": .idle
+        case "preparing": .preparing
+        case "driving": .driving
+        case "stopped": .stopped
+        default: nil
+        }
     }
 }
 

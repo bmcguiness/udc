@@ -46,6 +46,8 @@ protocol LocationProviding: AnyObject {
     var authorizationStatus: LocationAuthorizationStatus { get }
     var isLocationServicesEnabled: Bool { get }
     var latestSnapshot: LocationSnapshot? { get }
+    /// Whether Core Location is currently configured for background delivery.
+    var isBackgroundLocationUpdatesEnabled: Bool { get }
 
     var onAuthorizationChange: ((LocationAuthorizationStatus) -> Void)? { get set }
     var onSnapshot: ((LocationSnapshot) -> Void)? { get set }
@@ -55,12 +57,15 @@ protocol LocationProviding: AnyObject {
     func stopUpdating()
     /// Refresh cached authorization from the system (e.g. after TCC changes).
     func refreshAuthorizationStatus()
+    /// Enable/disable background location delivery for an active drive (When In Use + UIBackgroundModes).
+    func setBackgroundLocationUpdatesEnabled(_ enabled: Bool)
 }
 
 final class NoOpLocationProvider: LocationProviding {
     private(set) var authorizationStatus: LocationAuthorizationStatus = .notDetermined
     var isLocationServicesEnabled: Bool = true
     private(set) var latestSnapshot: LocationSnapshot?
+    private(set) var isBackgroundLocationUpdatesEnabled: Bool = false
 
     var onAuthorizationChange: ((LocationAuthorizationStatus) -> Void)?
     var onSnapshot: ((LocationSnapshot) -> Void)?
@@ -75,6 +80,10 @@ final class NoOpLocationProvider: LocationProviding {
 
     func refreshAuthorizationStatus() {
         onAuthorizationChange?(authorizationStatus)
+    }
+
+    func setBackgroundLocationUpdatesEnabled(_ enabled: Bool) {
+        isBackgroundLocationUpdatesEnabled = enabled
     }
 
     /// Test helper to inject a sample.
@@ -102,6 +111,7 @@ final class CoreLocationProvider: NSObject, LocationProviding, CLLocationManager
 
     private var latestHeading: CLHeading?
     private var cachedLocationServicesEnabled: Bool = true
+    private(set) var isBackgroundLocationUpdatesEnabled: Bool = false
 
     var isLocationServicesEnabled: Bool {
         cachedLocationServicesEnabled
@@ -118,6 +128,9 @@ final class CoreLocationProvider: NSObject, LocationProviding, CLLocationManager
         manager.distanceFilter = kCLDistanceFilterNone
         manager.activityType = .automotiveNavigation
         manager.pausesLocationUpdatesAutomatically = false
+        // Background delivery stays off until an active drive requests it.
+        manager.allowsBackgroundLocationUpdates = false
+        manager.showsBackgroundLocationIndicator = false
         refreshLocationServicesEnabledCache()
     }
 
@@ -135,8 +148,22 @@ final class CoreLocationProvider: NSObject, LocationProviding, CLLocationManager
     }
 
     func stopUpdating() {
+        setBackgroundLocationUpdatesEnabled(false)
         manager.stopUpdatingLocation()
         manager.stopUpdatingHeading()
+    }
+
+    func setBackgroundLocationUpdatesEnabled(_ enabled: Bool) {
+        // Enabling this without UIBackgroundModes → location crashes Core Location.
+        let modes = Bundle.main.object(forInfoDictionaryKey: "UIBackgroundModes") as? [String] ?? []
+        let supported = modes.contains("location")
+        let effective = enabled && supported
+        isBackgroundLocationUpdatesEnabled = effective
+        manager.allowsBackgroundLocationUpdates = effective
+        manager.showsBackgroundLocationIndicator = effective
+        if effective, authorizationStatus.allowsLocationUpdates {
+            manager.startUpdatingLocation()
+        }
     }
 
     func refreshAuthorizationStatus() {
