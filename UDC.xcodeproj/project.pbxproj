@@ -43,6 +43,7 @@
 		A00100000000000000000022 /* Core/PerformanceEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00100000000000000000024 /* Core/PerformanceEngineTests.swift */; };
 		A00100000000000000000023 /* Core/Driving/DriveLifecyclePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00100000000000000000025 /* Core/Driving/DriveLifecyclePolicy.swift */; };
 		A00100000000000000000024 /* Core/DriveDurabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00100000000000000000026 /* Core/DriveDurabilityTests.swift */; };
+		A00100000000000000000025 /* Features/DashboardSessionBadgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00100000000000000000027 /* Features/DashboardSessionBadgeTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -94,6 +95,7 @@
 		B00100000000000000000024 /* Core/PerformanceEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/PerformanceEngineTests.swift; sourceTree = "<group>"; };
 		B00100000000000000000025 /* Core/Driving/DriveLifecyclePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Driving/DriveLifecyclePolicy.swift; sourceTree = "<group>"; };
 		B00100000000000000000026 /* Core/DriveDurabilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/DriveDurabilityTests.swift; sourceTree = "<group>"; };
+		B00100000000000000000027 /* Features/DashboardSessionBadgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/DashboardSessionBadgeTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -178,6 +180,7 @@
 				B00100000000000000000021 /* Core/DrivingEngineTests.swift */,
 				B00100000000000000000024 /* Core/PerformanceEngineTests.swift */,
 				B00100000000000000000026 /* Core/DriveDurabilityTests.swift */,
+				B00100000000000000000027 /* Features/DashboardSessionBadgeTests.swift */,
 			);
 			path = UDCTests;
 			sourceTree = "<group>";
@@ -331,6 +334,7 @@
 				A0010000000000000000001F /* Core/DrivingEngineTests.swift in Sources */,
 				A00100000000000000000022 /* Core/PerformanceEngineTests.swift in Sources */,
 				A00100000000000000000024 /* Core/DriveDurabilityTests.swift in Sources */,
+				A00100000000000000000025 /* Features/DashboardSessionBadgeTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -28,6 +28,7 @@ enum PerformanceCancelReason: String, Equatable, Sendable, Codable {
     case invalidLaunch = "Invalid launch"
     case discarded = "Discarded"
     case interrupted = "Interrupted"
+    case driveEnded = "Drive ended"
 }
 
 enum PerformanceCompletionReason: String, Equatable, Sendable, Codable {

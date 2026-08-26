@@ -21,6 +21,11 @@ final class DrivingEngine {
 
     private var preparingSince: Date?
     private var stoppedSince: Date?
+    /// Accumulated duration from consecutive valid stopped samples only.
+    private var validStoppedAccumulatedSeconds: TimeInterval = 0
+    /// Last sample that contributed valid stopped evidence. Cleared on unknown speed.
+    private var lastValidStoppedSampleAt: Date?
+    private var lastValidMotionSampleAt: Date?
     private var preparingDistanceMeters: Double = 0
 
     private var lastAcceptedCoordinate: (lat: Double, lon: Double)?
@@ -79,6 +84,21 @@ final class DrivingEngine {
         publishSnapshot()
     }
 
+    /// Whether a durable in-progress drive exists that the user can explicitly finalize.
+    var canEndDriveManually: Bool {
+        phase.isActivelyRecording && liveTrip != nil && activeRecordPersisted
+    }
+
+    /// User-confirmed end. Always preserves an already-durable in-progress DriveRecord
+    /// (even if automatic minimum distance/duration floors are unmet). Automatic floors unchanged.
+    @discardableResult
+    func endCurrentDriveManually() -> Bool {
+        guard canEndDriveManually else { return false }
+        let end = lastAcceptedTimestamp ?? .now
+        completeTrip(at: end, reason: .manualUserEnd, forcePersist: true)
+        return true
+    }
+
     /// App-wide scene lifecycle hook (idle timer is owned by the app; this handles durability + GPS).
     func handleScenePhase(_ scenePhase: ScenePhase) {
         switch scenePhase {
@@ -116,7 +136,8 @@ final class DrivingEngine {
         snapshot.gpsSampleCount += 1
 
         let filtered = state.filteredSpeedMetersPerSecond
-        let accepted = filtered != nil && state.gpsStatus != .unavailable
+        let hasValidSpeed = filtered != nil
+        let accepted = hasValidSpeed && state.gpsStatus != .unavailable
         if accepted {
             snapshot.acceptedSampleCount += 1
         } else {
@@ -132,31 +153,15 @@ final class DrivingEngine {
             return
         }
 
-        let speed = filtered ?? 0
         let now = state.timestamp ?? .now
         let previousPhase = phase
         accumulateDistanceIfNeeded(state: state, now: now)
 
-        switch phase {
-        case .idle:
-            considerPreparing(speed: speed, now: now)
-        case .preparing:
-            considerStart(speed: speed, now: now)
-        case .driving:
-            updateLiveTrip(speed: speed)
-            if speed <= configuration.stopSpeedMetersPerSecond {
-                phase = .stopped
-                stoppedSince = now
-            }
-        case .stopped:
-            updateLiveTrip(speed: speed)
-            if speed > configuration.stopSpeedMetersPerSecond {
-                phase = .driving
-                stoppedSince = nil
-            } else if let stoppedSince,
-                      now.timeIntervalSince(stoppedSince) >= configuration.stopHoldDuration {
-                completeTrip(at: now, reason: .extendedStop)
-            }
+        // Missing/rejected filtered speed is unknown — not zero. Do not infer stop/move.
+        if let speed = filtered {
+            applyValidSpeed(speed, at: now)
+        } else {
+            applyUnknownSpeed()
         }
 
         if phase != previousPhase, phase.isActivelyRecording || previousPhase.isActivelyRecording {
@@ -169,6 +174,53 @@ final class DrivingEngine {
         }
 
         publishSnapshot()
+    }
+
+    /// Applies a validated filtered speed sample to the session phase machine.
+    private func applyValidSpeed(_ speed: Double, at now: Date) {
+        switch phase {
+        case .idle:
+            considerPreparing(speed: speed, now: now)
+        case .preparing:
+            considerStart(speed: speed, now: now)
+        case .driving:
+            updateLiveTrip(speed: speed)
+            lastValidMotionSampleAt = now
+            if speed <= configuration.stopSpeedMetersPerSecond {
+                phase = .stopped
+                stoppedSince = now
+                validStoppedAccumulatedSeconds = 0
+                lastValidStoppedSampleAt = now
+            }
+        case .stopped:
+            updateLiveTrip(speed: speed)
+            if speed > configuration.stopSpeedMetersPerSecond {
+                phase = .driving
+                clearStoppedTiming()
+                lastValidMotionSampleAt = now
+            } else {
+                if let lastValidStoppedSampleAt {
+                    let delta = max(0, now.timeIntervalSince(lastValidStoppedSampleAt))
+                    validStoppedAccumulatedSeconds += delta
+                }
+                lastValidStoppedSampleAt = now
+                if validStoppedAccumulatedSeconds >= configuration.stopHoldDuration {
+                    completeTrip(at: now, reason: .extendedStop)
+                }
+            }
+        }
+    }
+
+    /// Unknown/unavailable speed: freeze stopped-interval chain; do not change phase.
+    private func applyUnknownSpeed() {
+        // Break the consecutive valid-stopped chain so GPS outages do not count as stopped time.
+        lastValidStoppedSampleAt = nil
+    }
+
+    private func clearStoppedTiming() {
+        stoppedSince = nil
+        validStoppedAccumulatedSeconds = 0
+        lastValidStoppedSampleAt = nil
     }
 
     private func considerPreparing(speed: Double, now: Date) {
@@ -214,7 +266,7 @@ final class DrivingEngine {
         liveTrip = trip
         phase = .driving
         preparingSince = nil
-        stoppedSince = nil
+        clearStoppedTiming()
         preparingDistanceMeters = 0
         recoveredSession = false
         recoveryReason = .none
@@ -237,7 +289,7 @@ final class DrivingEngine {
         liveTrip = trip
     }
 
-    private func completeTrip(at end: Date, reason: DriveSessionEndReason) {
+    private func completeTrip(at end: Date, reason: DriveSessionEndReason, forcePersist: Bool = false) {
         guard let trip = liveTrip else {
             resetToIdle(reason: reason)
             return
@@ -248,19 +300,22 @@ final class DrivingEngine {
         let meetsFloor = distance >= configuration.minimumPersistDistanceMeters
             && duration >= configuration.minimumPersistDuration
 
-        if meetsFloor {
+        // Manual End Drive always keeps a durable in-progress record. Automatic floors unchanged.
+        if forcePersist || meetsFloor {
             finalizeActiveRecord(trip: trip, endedAt: end, reason: reason)
             snapshot.lastCompletedTripID = trip.id
             snapshot.endReason = reason
+            snapshot.lastFinalizationAt = end
         } else {
             discardActiveRecord(id: trip.id)
             snapshot.endReason = .discardedTooShort
+            snapshot.lastFinalizationAt = end
         }
 
         liveTrip = nil
         phase = .idle
         preparingSince = nil
-        stoppedSince = nil
+        clearStoppedTiming()
         preparingDistanceMeters = 0
         lastAcceptedCoordinate = nil
         lastAcceptedTimestamp = nil
@@ -275,7 +330,7 @@ final class DrivingEngine {
         phase = .idle
         liveTrip = nil
         preparingSince = nil
-        stoppedSince = nil
+        clearStoppedTiming()
         preparingDistanceMeters = 0
         lastAcceptedCoordinate = nil
         lastAcceptedTimestamp = nil
@@ -547,6 +602,11 @@ final class DrivingEngine {
         }
         if phase == .stopped {
             stoppedSince = record.lastValidLocationAt
+            // Fresh valid-stopped chain after recovery — do not inherit wall-clock outage.
+            validStoppedAccumulatedSeconds = 0
+            lastValidStoppedSampleAt = nil
+        } else {
+            clearStoppedTiming()
         }
         if let lat = record.lastValidLatitude, let lon = record.lastValidLongitude {
             lastAcceptedCoordinate = (lat, lon)
@@ -591,12 +651,14 @@ final class DrivingEngine {
             try? modelContext.save()
             snapshot.lastCompletedTripID = record.id
             snapshot.endReason = .staleRecovery
+            snapshot.lastFinalizationAt = now
             recoveryReason = .finalizedStale
             lastCheckpointReason = .staleFinalization
         } else {
             modelContext.delete(record)
             try? modelContext.save()
             recoveryReason = .discardedStaleTooShort
+            snapshot.lastFinalizationAt = now
         }
     }
 
@@ -624,6 +686,17 @@ final class DrivingEngine {
         next.recoveredSession = recoveredSession
         next.recoveryReason = recoveryReason
         next.backgroundLocationEnabled = telemetry.isBackgroundLocationUpdatesEnabled
+        next.canEndDriveManually = phase.isActivelyRecording && liveTrip != nil && activeRecordPersisted
+        next.stopHoldDurationSeconds = configuration.stopHoldDuration
+        next.stopSpeedMetersPerSecond = configuration.stopSpeedMetersPerSecond
+        next.isFilteredSpeedValid = telemetry.state.filteredSpeedMetersPerSecond != nil
+        next.lastValidMotionSampleAt = lastValidMotionSampleAt
+        next.lastValidStoppedSampleAt = lastValidStoppedSampleAt
+        if phase == .stopped {
+            next.stoppedElapsedSeconds = validStoppedAccumulatedSeconds
+        } else {
+            next.stoppedElapsedSeconds = nil
+        }
         if let trip = liveTrip {
             next.liveTrip = trip
             _ = trip.duration(at: now)
@@ -653,7 +726,15 @@ final class DrivingEngine {
             lastValidLongitude: snapshot.lastValidLongitude,
             recoveredSession: snapshot.recoveredSession,
             recoveryReason: snapshot.recoveryReason,
-            finalizationReason: snapshot.endReason
+            finalizationReason: snapshot.endReason,
+            canEndDriveManually: snapshot.canEndDriveManually,
+            lastFinalizationAt: snapshot.lastFinalizationAt,
+            stoppedElapsedSeconds: snapshot.stoppedElapsedSeconds,
+            stopHoldDurationSeconds: snapshot.stopHoldDurationSeconds,
+            stopSpeedMetersPerSecond: snapshot.stopSpeedMetersPerSecond,
+            isFilteredSpeedValid: snapshot.isFilteredSpeedValid,
+            lastValidMotionSampleAt: snapshot.lastValidMotionSampleAt,
+            lastValidStoppedSampleAt: snapshot.lastValidStoppedSampleAt
         )
     }
 }

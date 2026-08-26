@@ -78,6 +78,13 @@ struct DiagnosticsView: View {
                     row("Active Drive ID", diagnostics.activeDriveRecordID?.uuidString ?? "—")
                     row("Active Record Persisted", diagnostics.activeRecordPersisted ? "Yes" : "No")
                     row("Finalized", diagnostics.activeDriveFinalized ? "Yes" : "No")
+                    row("Filtered Speed", mps(diagnostics.filteredSpeedMetersPerSecond))
+                    row("Speed Valid", diagnostics.isFilteredSpeedValid ? "Yes" : "No")
+                    row("Stop Speed Threshold", String(format: "%.2f m/s", diagnostics.stopSpeedMetersPerSecond))
+                    row("Valid Stopped Elapsed", age(diagnostics.stoppedElapsedSeconds))
+                    row("Auto End Timeout", age(diagnostics.stopHoldDurationSeconds))
+                    row("Last Valid Motion Sample", timestamp(diagnostics.lastValidMotionSampleAt))
+                    row("Last Valid Stopped Sample", timestamp(diagnostics.lastValidStoppedSampleAt))
                     row("Last Checkpoint", timestamp(diagnostics.lastCheckpointAt))
                     row("Checkpoint Reason", diagnostics.checkpointReason?.rawValue ?? "—")
                     row("Last Valid Location", timestamp(diagnostics.lastValidLocationAt))
@@ -93,7 +100,9 @@ struct DiagnosticsView: View {
                     row("Last Background", timestamp(diagnostics.lastBackgroundTransitionAt))
                     row("Recovered Session", diagnostics.recoveredSession ? "Yes" : "No")
                     row("Recovery Reason", diagnostics.recoveryReason.rawValue)
+                    row("Manual End Drive Available", diagnostics.canEndDriveManually ? "Yes" : "No")
                     row("Finalization Reason", diagnostics.finalizationReason?.rawValue ?? "—")
+                    row("Last Finalization", timestamp(diagnostics.lastFinalizationAt))
                     row("Active Vehicle", diagnostics.activeVehicleName ?? "—")
                     row(
                         "Location Authorization",

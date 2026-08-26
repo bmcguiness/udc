@@ -293,6 +293,81 @@ final class DriveDurabilityTests: XCTestCase {
         XCTAssertEqual(record.performanceRuns.count, 1)
     }
 
+    func testManualEndUnavailableWithoutActiveDrive() {
+        XCTAssertEqual(engine.snapshot.phase, .idle)
+        XCTAssertFalse(engine.canEndDriveManually)
+        XCTAssertFalse(engine.endCurrentDriveManually())
+    }
+
+    func testManualEndFinalizesExistingDrivePreservingIdentityAndMetrics() async throws {
+        await enterDrive()
+        XCTAssertTrue(engine.canEndDriveManually)
+
+        let tripID = try XCTUnwrap(engine.snapshot.liveTrip?.id)
+        await advance(0.3)
+        await publish(speed: 18, lat: 37.33050, lon: -122.0100)
+        await advance(0.3)
+        await publish(speed: 20, lat: 37.33100, lon: -122.0100)
+
+        let before = try XCTUnwrap(try context.fetch(FetchDescriptor<DriveRecord>()).first)
+        let distance = before.distanceMeters
+        let maxSpeed = before.maximumSpeedMetersPerSecond
+        XCTAssertGreaterThan(distance, 0)
+        XCTAssertTrue(before.isInProgress)
+
+        let ended = engine.endCurrentDriveManually()
+        XCTAssertTrue(ended)
+        XCTAssertEqual(engine.snapshot.phase, .idle)
+        XCTAssertFalse(engine.canEndDriveManually)
+        XCTAssertNil(engine.snapshot.liveTrip)
+        XCTAssertEqual(engine.snapshot.endReason, .manualUserEnd)
+        XCTAssertEqual(engine.snapshot.lastCompletedTripID, tripID)
+        XCTAssertNotNil(engine.snapshot.lastFinalizationAt)
+
+        let records = try context.fetch(FetchDescriptor<DriveRecord>())
+        XCTAssertEqual(records.count, 1)
+        XCTAssertEqual(records[0].id, tripID)
+        XCTAssertFalse(records[0].isInProgress)
+        XCTAssertTrue(records[0].isFinalized)
+        XCTAssertEqual(records[0].vehicleID, vehicleID)
+        XCTAssertEqual(records[0].distanceMeters, distance, accuracy: 0.01)
+        XCTAssertEqual(records[0].maximumSpeedMetersPerSecond, maxSpeed, accuracy: 0.01)
+        XCTAssertGreaterThan(records[0].durationSeconds, 0)
+        XCTAssertGreaterThanOrEqual(records[0].averageSpeedMetersPerSecond, 0)
+
+        let history = try context.fetch(
+            FetchDescriptor<DriveRecord>(
+                predicate: #Predicate { $0.isInProgress == false },
+                sortBy: [SortDescriptor(\.endedAt, order: .reverse)]
+            )
+        )
+        XCTAssertEqual(history.count, 1)
+        XCTAssertEqual(history[0].id, tripID)
+    }
+
+    func testManualEndWhilePausedStillFinalizes() async throws {
+        await enterDrive()
+        let tripID = try XCTUnwrap(engine.snapshot.liveTrip?.id)
+        await advance(0.3)
+        await publish(speed: 16, lat: 37.33060, lon: -122.0100)
+        await advance(0.2)
+        await publish(speed: 0.2, lat: 37.33060, lon: -122.0100)
+        await advance(0.15)
+        await publish(speed: 0.1, lat: 37.33060, lon: -122.0100)
+
+        XCTAssertEqual(engine.snapshot.phase, .stopped)
+        XCTAssertTrue(engine.canEndDriveManually)
+
+        XCTAssertTrue(engine.endCurrentDriveManually())
+        XCTAssertEqual(engine.snapshot.phase, .idle)
+        XCTAssertEqual(engine.snapshot.endReason, .manualUserEnd)
+
+        let records = try context.fetch(FetchDescriptor<DriveRecord>())
+        XCTAssertEqual(records.count, 1)
+        XCTAssertEqual(records[0].id, tripID)
+        XCTAssertFalse(records[0].isInProgress)
+    }
+
     // MARK: - Helpers
 
     private func enterDrive() async {

@@ -100,7 +100,15 @@ final class DrivingTelemetryService {
         lastValidLongitude: Double?,
         recoveredSession: Bool,
         recoveryReason: DriveRecoveryReason,
-        finalizationReason: DriveSessionEndReason?
+        finalizationReason: DriveSessionEndReason?,
+        canEndDriveManually: Bool,
+        lastFinalizationAt: Date?,
+        stoppedElapsedSeconds: TimeInterval?,
+        stopHoldDurationSeconds: TimeInterval,
+        stopSpeedMetersPerSecond: Double,
+        isFilteredSpeedValid: Bool,
+        lastValidMotionSampleAt: Date?,
+        lastValidStoppedSampleAt: Date?
     ) {
         diagnostics.backgroundLocationEnabled = backgroundLocationEnabled
         diagnostics.idleTimerDisabled = idleTimerDisabled
@@ -115,6 +123,14 @@ final class DrivingTelemetryService {
         diagnostics.recoveredSession = recoveredSession
         diagnostics.recoveryReason = recoveryReason
         diagnostics.finalizationReason = finalizationReason
+        diagnostics.canEndDriveManually = canEndDriveManually
+        diagnostics.lastFinalizationAt = lastFinalizationAt
+        diagnostics.stoppedElapsedSeconds = stoppedElapsedSeconds
+        diagnostics.stopHoldDurationSeconds = stopHoldDurationSeconds
+        diagnostics.stopSpeedMetersPerSecond = stopSpeedMetersPerSecond
+        diagnostics.isFilteredSpeedValid = isFilteredSpeedValid
+        diagnostics.lastValidMotionSampleAt = lastValidMotionSampleAt
+        diagnostics.lastValidStoppedSampleAt = lastValidStoppedSampleAt
     }
 
     func updateActiveVehicle(name: String?, speedUnit: SpeedUnit) {
@@ -385,7 +401,15 @@ final class DrivingTelemetryService {
             lastBackgroundTransitionAt: previous.lastBackgroundTransitionAt,
             recoveredSession: previous.recoveredSession,
             recoveryReason: previous.recoveryReason,
-            finalizationReason: previous.finalizationReason
+            finalizationReason: previous.finalizationReason,
+            canEndDriveManually: previous.canEndDriveManually,
+            lastFinalizationAt: previous.lastFinalizationAt,
+            stoppedElapsedSeconds: previous.stoppedElapsedSeconds,
+            stopHoldDurationSeconds: previous.stopHoldDurationSeconds,
+            stopSpeedMetersPerSecond: previous.stopSpeedMetersPerSecond,
+            isFilteredSpeedValid: previous.isFilteredSpeedValid,
+            lastValidMotionSampleAt: previous.lastValidMotionSampleAt,
+            lastValidStoppedSampleAt: previous.lastValidStoppedSampleAt
         )
     }
 }
@@ -457,6 +481,14 @@ struct DrivingDiagnostics: Equatable, Sendable {
     var recoveredSession: Bool = false
     var recoveryReason: DriveRecoveryReason = .none
     var finalizationReason: DriveSessionEndReason?
+    var canEndDriveManually: Bool = false
+    var lastFinalizationAt: Date?
+    var stoppedElapsedSeconds: TimeInterval?
+    var stopHoldDurationSeconds: TimeInterval = DriveSessionConfiguration().stopHoldDuration
+    var stopSpeedMetersPerSecond: Double = DriveSessionConfiguration().stopSpeedMetersPerSecond
+    var isFilteredSpeedValid: Bool = false
+    var lastValidMotionSampleAt: Date?
+    var lastValidStoppedSampleAt: Date?
 
     static let empty = DrivingDiagnostics()
 }

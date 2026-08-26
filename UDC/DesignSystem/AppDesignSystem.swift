@@ -299,6 +299,7 @@ struct StatusBadge: View {
     let title: String
     var icon: String? = nil
     var style: Style = .neutral
+    var showsActionAffordance: Bool = false
 
     var body: some View {
         HStack(spacing: 5) {
@@ -310,12 +311,24 @@ struct StatusBadge: View {
             Text(title)
                 .font(AppTypography.micro())
                 .tracking(0.4)
+            if showsActionAffordance {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .bold))
+                    .opacity(0.72)
+                    .accessibilityHidden(true)
+            }
         }
         .foregroundStyle(style.foreground)
-        .padding(.horizontal, 10)
+        .padding(.horizontal, showsActionAffordance ? 11 : 10)
         .padding(.vertical, 5)
         .background(Capsule(style: .continuous).fill(style.background))
-        .overlay(Capsule(style: .continuous).strokeBorder(style.foreground.opacity(0.18), lineWidth: 0.5))
+        .overlay(
+            Capsule(style: .continuous)
+                .strokeBorder(
+                    style.foreground.opacity(showsActionAffordance ? 0.32 : 0.18),
+                    lineWidth: showsActionAffordance ? 0.75 : 0.5
+                )
+        )
         .accessibilityElement(children: .combine)
         .accessibilityLabel(title)
     }
@@ -427,11 +440,110 @@ struct DashboardMetric: View {
 
 // MARK: - Dashboard Header
 
+/// Presentation-only session badge state. Waiting is never a DrivingEngine phase.
+struct DashboardSessionBadgePresentation: Equatable, Sendable {
+    var title: String
+    var style: StatusBadge.Style
+    var icon: String?
+    var isActionable: Bool
+    var showsActionAffordance: Bool
+    var accessibilityLabel: String
+    var accessibilityHint: String?
+
+    static let waitingAccessibilityLabel = "Waiting for End Drive confirmation"
+
+    /// Resolves the header badge. `isEndDriveConfirmationPresented` forces Waiting without
+    /// changing DrivingEngine. Cancel restores whatever phase the engine currently reports.
+    static func resolve(
+        phase: DriveSessionPhase,
+        isEndDriveConfirmationPresented: Bool,
+        canEndDriveManually: Bool,
+        gpsStatus: GPSStatus,
+        isMoving: Bool
+    ) -> DashboardSessionBadgePresentation {
+        if isEndDriveConfirmationPresented {
+            return DashboardSessionBadgePresentation(
+                title: "Waiting",
+                style: .neutral,
+                icon: "ellipsis",
+                isActionable: false,
+                showsActionAffordance: false,
+                accessibilityLabel: waitingAccessibilityLabel,
+                accessibilityHint: nil
+            )
+        }
+
+        let title: String
+        let style: StatusBadge.Style
+        let icon: String
+        if phase != .idle {
+            title = phase.displayName
+            switch phase {
+            case .driving:
+                style = .success
+                icon = "car.fill"
+            case .preparing:
+                style = .accent
+                icon = "hare.fill"
+            case .stopped:
+                style = .warning
+                icon = "pause.fill"
+            case .idle:
+                style = .neutral
+                icon = "circle.fill"
+            }
+        } else {
+            switch gpsStatus {
+            case .ready:
+                title = isMoving ? "Live" : "Ready"
+                style = .success
+                icon = "location.fill"
+            case .searching:
+                title = "Searching"
+                style = .accent
+                icon = "location.magnifyingglass"
+            case .poorSignal:
+                title = "Weak Signal"
+                style = .warning
+                icon = "location.north.circle"
+            case .permissionNeeded:
+                title = "Permission"
+                style = .neutral
+                icon = "hand.raised.fill"
+            case .locationDisabled:
+                title = "Disabled"
+                style = .neutral
+                icon = "location.slash.fill"
+            case .unavailable:
+                title = "Unavailable"
+                style = .warning
+                icon = "exclamationmark.triangle.fill"
+            }
+        }
+
+        let actionable = canEndDriveManually
+        return DashboardSessionBadgePresentation(
+            title: title,
+            style: style,
+            icon: icon,
+            isActionable: actionable,
+            showsActionAffordance: actionable,
+            accessibilityLabel: title,
+            accessibilityHint: actionable ? DashboardHeader.endDriveAccessibilityHint : nil
+        )
+    }
+}
+
 struct DashboardHeader: View {
     let vehicleName: String
     let statusTitle: String
     var statusStyle: StatusBadge.Style = .success
     var statusIcon: String? = "circle.fill"
+    var canEndDriveManually: Bool = false
+    var showsActionAffordance: Bool = true
+    var statusAccessibilityLabel: String? = nil
+    var statusAccessibilityHint: String? = nil
+    var onEndDriveTap: (() -> Void)? = nil
 
     var body: some View {
         HStack(alignment: .center, spacing: AppSpacing.sm) {
@@ -445,10 +557,49 @@ struct DashboardHeader: View {
                     .foregroundStyle(Color.appTextPrimary)
                     .lineLimit(1)
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Active vehicle \(vehicleName)")
+
             Spacer(minLength: AppSpacing.sm)
-            StatusBadge(title: statusTitle, icon: statusIcon, style: statusStyle)
+            sessionStatusBadge
         }
-        .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder
+    private var sessionStatusBadge: some View {
+        let affordance = canEndDriveManually && showsActionAffordance
+        let label = statusAccessibilityLabel ?? statusTitle
+        if canEndDriveManually {
+            Button {
+                onEndDriveTap?()
+            } label: {
+                StatusBadge(
+                    title: statusTitle,
+                    icon: statusIcon,
+                    style: statusStyle,
+                    showsActionAffordance: affordance
+                )
+            }
+            .buttonStyle(AppPressableButtonStyle())
+            .accessibilityLabel(label)
+            .accessibilityHint(statusAccessibilityHint ?? Self.endDriveAccessibilityHint)
+            .accessibilityAddTraits(.isButton)
+            .frame(minWidth: 44, minHeight: 44)
+        } else {
+            StatusBadge(
+                title: statusTitle,
+                icon: statusIcon,
+                style: statusStyle,
+                showsActionAffordance: false
+            )
+            .accessibilityLabel(label)
+        }
+    }
+
+    static let endDriveAccessibilityHint = "Double tap to end the current drive."
+
+    static func isEndDriveActionAvailable(canEndDriveManually: Bool) -> Bool {
+        canEndDriveManually
     }
 }
 

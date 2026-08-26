@@ -7,6 +7,7 @@ struct DashboardView: View {
     @Environment(PerformanceEngine.self) private var performanceEngine
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \VehicleProfile.createdAt) private var vehicles: [VehicleProfile]
+    @State private var showEndDriveConfirmation = false
 
     private var activeVehicle: VehicleProfile? {
         vehicles.first(where: \.isActive) ?? vehicles.first
@@ -16,15 +17,30 @@ struct DashboardView: View {
     private var session: DrivingEngineSnapshot { drivingEngine.snapshot }
     private var liveTrip: LiveTrip? { session.liveTrip }
 
+    private var sessionBadgePresentation: DashboardSessionBadgePresentation {
+        DashboardSessionBadgePresentation.resolve(
+            phase: session.phase,
+            isEndDriveConfirmationPresented: showEndDriveConfirmation,
+            canEndDriveManually: session.canEndDriveManually,
+            gpsStatus: state.gpsStatus,
+            isMoving: state.isMoving
+        )
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: AppSpacing.lg) {
                     DashboardHeader(
                         vehicleName: activeVehicle?.name ?? "No Vehicle",
-                        statusTitle: headerStatusTitle,
-                        statusStyle: headerStatusStyle,
-                        statusIcon: headerStatusIcon
+                        statusTitle: sessionBadgePresentation.title,
+                        statusStyle: sessionBadgePresentation.style,
+                        statusIcon: sessionBadgePresentation.icon,
+                        canEndDriveManually: sessionBadgePresentation.isActionable,
+                        showsActionAffordance: sessionBadgePresentation.showsActionAffordance,
+                        statusAccessibilityLabel: sessionBadgePresentation.accessibilityLabel,
+                        statusAccessibilityHint: sessionBadgePresentation.accessibilityHint,
+                        onEndDriveTap: { showEndDriveConfirmation = true }
                     )
                     .appearAnimation(delay: 0.02)
 
@@ -51,6 +67,18 @@ struct DashboardView: View {
             .navigationTitle("Dashboard")
             .navigationBarTitleDisplayMode(.large)
             .toolbarBackground(Color.appBackground, for: .navigationBar)
+            .confirmationDialog(
+                "End Drive?",
+                isPresented: $showEndDriveConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("End Drive") {
+                    confirmEndDrive()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This will finish the current drive and add it to Drive History.")
+            }
             .onAppear {
                 drivingEngine.attach(modelContext: modelContext)
                 performanceEngine.attach(modelContext: modelContext)
@@ -70,38 +98,6 @@ struct DashboardView: View {
 
     private var distanceUnit: DistanceUnit {
         activeVehicle?.preferredDistanceUnit ?? .miles
-    }
-
-    private var headerStatusTitle: String {
-        if session.phase != .idle {
-            return session.phase.displayName
-        }
-        switch state.gpsStatus {
-        case .ready: return state.isMoving ? "Live" : "Ready"
-        case .searching: return "Searching"
-        case .poorSignal: return "Weak Signal"
-        case .permissionNeeded: return "Permission"
-        case .locationDisabled: return "Disabled"
-        case .unavailable: return "Unavailable"
-        }
-    }
-
-    private var headerStatusStyle: StatusBadge.Style {
-        switch session.phase {
-        case .driving: .success
-        case .preparing: .accent
-        case .stopped: .warning
-        case .idle: gpsBadgeStyle(state.gpsStatus)
-        }
-    }
-
-    private var headerStatusIcon: String {
-        switch session.phase {
-        case .driving: "car.fill"
-        case .preparing: "hare.fill"
-        case .stopped: "pause.fill"
-        case .idle: gpsBadgeSymbol(state.gpsStatus)
-        }
     }
 
     private var speedCluster: some View {
@@ -136,11 +132,6 @@ struct DashboardView: View {
             .animation(.easeInOut(duration: 0.35), value: displayedSpeed)
 
             HStack(spacing: AppSpacing.xs) {
-                StatusBadge(
-                    title: session.phase.displayName,
-                    icon: headerStatusIcon,
-                    style: headerStatusStyle
-                )
                 StatusBadge(
                     title: state.gpsStatus.badgeTitle,
                     icon: gpsBadgeSymbol(state.gpsStatus),
@@ -216,7 +207,6 @@ struct DashboardView: View {
         AppCard {
             VStack(alignment: .leading, spacing: AppSpacing.sm) {
                 SectionHeader(title: "Session", subtitle: sessionSubtitle)
-                InfoRow(title: "Status", value: session.phase.displayName, symbol: "car.side")
                 InfoRow(title: "Vehicle", value: activeVehicle?.name ?? "—", symbol: "car.fill")
                 InfoRow(
                     title: "Started",
@@ -406,6 +396,12 @@ struct DashboardView: View {
             distanceUnit: activeVehicle?.preferredDistanceUnit ?? .miles,
             bestsJSON: activeVehicle?.performanceBestsJSON
         )
+    }
+
+    private func confirmEndDrive() {
+        guard session.canEndDriveManually else { return }
+        performanceEngine.cancelActiveTimingForManualDriveEnd()
+        drivingEngine.endCurrentDriveManually()
     }
 
     private func openSystemSettings() {

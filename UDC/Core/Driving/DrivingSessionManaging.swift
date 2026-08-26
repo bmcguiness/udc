@@ -33,7 +33,7 @@ enum DriveSessionStartReason: String, Equatable, Sendable {
 enum DriveSessionEndReason: String, Equatable, Sendable {
     case extendedStop = "Extended stop"
     case discardedTooShort = "Discarded (too short)"
-    case manual = "Manual"
+    case manualUserEnd = "Manual user end"
     case authorizationLost = "Authorization lost"
     case interrupted = "Interrupted"
     case staleRecovery = "Stale recovery finalize"
@@ -110,6 +110,19 @@ struct DrivingEngineSnapshot: Equatable, Sendable {
     var recoveredSession: Bool = false
     var recoveryReason: DriveRecoveryReason = .none
     var backgroundLocationEnabled: Bool = false
+    var lastFinalizationAt: Date?
+    /// True when a durable in-progress drive can be manually finalized.
+    var canEndDriveManually: Bool = false
+    /// Elapsed time in `.stopped` (Paused) from valid stopped observations only.
+    var stoppedElapsedSeconds: TimeInterval?
+    /// Configured automatic-end hold while stopped.
+    var stopHoldDurationSeconds: TimeInterval = DriveSessionConfiguration().stopHoldDuration
+    /// Configured stop-speed threshold (filtered m/s).
+    var stopSpeedMetersPerSecond: Double = DriveSessionConfiguration().stopSpeedMetersPerSecond
+    /// Whether the latest telemetry sample had a usable filtered speed.
+    var isFilteredSpeedValid: Bool = false
+    var lastValidMotionSampleAt: Date?
+    var lastValidStoppedSampleAt: Date?
 
     var currentDistanceMeters: Double { liveTrip?.distanceMeters ?? 0 }
     var currentMaxSpeedMetersPerSecond: Double { liveTrip?.maximumSpeedMetersPerSecond ?? 0 }

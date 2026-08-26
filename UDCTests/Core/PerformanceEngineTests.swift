@@ -370,6 +370,62 @@ final class PerformanceEngineTests: XCTestCase {
         }
     }
 
+    func testManualDriveEndCancelsIncompleteRunAndPreservesCompletedAttachments() async throws {
+        await enterActiveDrive()
+        let tripID = try XCTUnwrap(drivingEngine.snapshot.liveTrip?.id)
+
+        // Attach a previously completed Performance result to the durable drive.
+        let completedRun = PerformanceRunSummary(
+            id: UUID(),
+            driveRecordID: tripID,
+            vehicleID: vehicleID,
+            vehicleName: "Perf Car",
+            launchedAt: .now.addingTimeInterval(-30),
+            completedAt: .now.addingTimeInterval(-20),
+            isValid: true,
+            cancelReason: nil,
+            completionReason: .significantSlowdown,
+            zeroTo30Seconds: 2.1,
+            zeroTo40Seconds: 3.2,
+            zeroTo60Seconds: 5.5,
+            eighthMileSeconds: nil,
+            quarterMileSeconds: nil,
+            eighthMileTopSpeedMetersPerSecond: nil,
+            quarterMileTopSpeedMetersPerSecond: nil,
+            peakSpeedMetersPerSecond: 28,
+            distanceMeters: 90,
+            durationSeconds: 7,
+            speedUnitRaw: "mph",
+            distanceUnitRaw: "mi"
+        )
+        let record = try XCTUnwrap(try context.fetch(FetchDescriptor<DriveRecord>()).first)
+        record.performanceSummaryJSON = PerformanceAttachment.encode([completedRun])
+        try context.save()
+
+        await holdStopped()
+        await publish(speed: 10, lat: 37.3300, lon: -122.0100)
+        XCTAssertEqual(performanceEngine.snapshot.phase, .running)
+        let incompleteRunID = try XCTUnwrap(performanceEngine.snapshot.liveRun?.id)
+
+        performanceEngine.cancelActiveTimingForManualDriveEnd()
+        XCTAssertEqual(performanceEngine.snapshot.phase, .cancelled)
+        XCTAssertEqual(performanceEngine.snapshot.lastCancelReason, .driveEnded)
+        XCTAssertNil(performanceEngine.snapshot.liveRun)
+        XCTAssertFalse(performanceEngine.recentRuns.contains(where: { $0.id == incompleteRunID }))
+
+        XCTAssertTrue(drivingEngine.endCurrentDriveManually())
+        XCTAssertEqual(drivingEngine.snapshot.phase, .idle)
+        XCTAssertEqual(drivingEngine.snapshot.endReason, .manualUserEnd)
+
+        let finalized = try XCTUnwrap(try context.fetch(FetchDescriptor<DriveRecord>()).first)
+        XCTAssertEqual(finalized.id, tripID)
+        XCTAssertFalse(finalized.isInProgress)
+        XCTAssertEqual(finalized.performanceRuns.count, 1)
+        XCTAssertEqual(finalized.performanceRuns.first?.id, completedRun.id)
+        XCTAssertTrue(finalized.performanceRuns.first?.isValid ?? false)
+        XCTAssertFalse(finalized.performanceRuns.contains(where: { $0.id == incompleteRunID }))
+    }
+
     // MARK: - Helpers
 
     private func enterActiveDrive() async {

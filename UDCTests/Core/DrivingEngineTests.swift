@@ -216,6 +216,115 @@ final class DrivingEngineTests: XCTestCase {
         XCTAssertEqual(engine.snapshot.phase, .idle)
     }
 
+    func testDrivingIgnoresUnavailableFilteredSpeed() async {
+        await publishMoving(speed: 12, lat: 37.3300, lon: -122.0100)
+        await advance(0.5)
+        await publishMoving(speed: 12, lat: 37.3302, lon: -122.0100)
+        XCTAssertEqual(engine.snapshot.phase, .driving)
+        XCTAssertNil(engine.snapshot.stoppedElapsedSeconds)
+
+        await publish(speed: 0.1, lat: 37.3302, lon: -122.0100, accuracy: 200)
+        XCTAssertEqual(engine.snapshot.phase, .driving)
+        XCTAssertNil(engine.snapshot.stoppedElapsedSeconds)
+        XCTAssertFalse(engine.snapshot.isFilteredSpeedValid)
+        XCTAssertEqual(engine.snapshot.endReason, nil)
+    }
+
+    func testDrivingValidStoppedTransitionsToPaused() async {
+        await publishMoving(speed: 12, lat: 37.3300, lon: -122.0100)
+        await advance(0.5)
+        await publishMoving(speed: 12, lat: 37.3302, lon: -122.0100)
+        XCTAssertEqual(engine.snapshot.phase, .driving)
+
+        await publishMoving(speed: 0.2, lat: 37.3302, lon: -122.0100)
+        XCTAssertEqual(engine.snapshot.phase, .stopped)
+        XCTAssertEqual(engine.snapshot.stoppedElapsedSeconds ?? -1, 0, accuracy: 0.001)
+        XCTAssertTrue(engine.snapshot.isFilteredSpeedValid)
+        XCTAssertNotNil(engine.snapshot.lastValidStoppedSampleAt)
+    }
+
+    func testPausedUnavailableSpeedDoesNotAdvanceAutoEnd() async {
+        await publishMoving(speed: 12, lat: 37.3300, lon: -122.0100)
+        await advance(0.5)
+        await publishMoving(speed: 12, lat: 37.3302, lon: -122.0100)
+        await publishMoving(speed: 0.2, lat: 37.3302, lon: -122.0100)
+        XCTAssertEqual(engine.snapshot.phase, .stopped)
+        let elapsedBefore = engine.snapshot.stoppedElapsedSeconds ?? 0
+
+        // Simulate a GPS outage longer than stopHoldDuration (0.4s in test config).
+        await advance(0.8)
+        await publish(speed: 0.1, lat: 37.3302, lon: -122.0100, accuracy: 200)
+        await advance(0.8)
+        await publish(speed: 0.1, lat: 37.3303, lon: -122.0100, accuracy: 200)
+
+        XCTAssertEqual(engine.snapshot.phase, .stopped)
+        XCTAssertEqual(engine.snapshot.stoppedElapsedSeconds ?? -1, elapsedBefore, accuracy: 0.001)
+        XCTAssertNotNil(engine.snapshot.liveTrip)
+        XCTAssertNotEqual(engine.snapshot.endReason, .extendedStop)
+
+        // Next valid stopped sample must not inherit the outage gap.
+        await publishMoving(speed: 0.1, lat: 37.3302, lon: -122.0100)
+        XCTAssertEqual(engine.snapshot.phase, .stopped)
+        XCTAssertEqual(engine.snapshot.stoppedElapsedSeconds ?? -1, elapsedBefore, accuracy: 0.001)
+    }
+
+    func testPausedValidStoppedSamplesAccumulateAndFinalize() async throws {
+        await publishMoving(speed: 16, lat: 37.33000, lon: -122.0100)
+        await advance(0.5)
+        await publishMoving(speed: 16, lat: 37.33040, lon: -122.0100)
+        await advance(1)
+        await publishMoving(speed: 16, lat: 37.33080, lon: -122.0100)
+        let tripID = try XCTUnwrap(engine.snapshot.liveTrip?.id)
+
+        await publishMoving(speed: 0.2, lat: 37.33080, lon: -122.0100)
+        XCTAssertEqual(engine.snapshot.phase, .stopped)
+
+        await advance(0.25)
+        await publishMoving(speed: 0.1, lat: 37.33080, lon: -122.0100)
+        XCTAssertEqual(engine.snapshot.phase, .stopped)
+        XCTAssertGreaterThan(engine.snapshot.stoppedElapsedSeconds ?? 0, 0.15)
+
+        await advance(0.3)
+        await publishMoving(speed: 0.1, lat: 37.33080, lon: -122.0100)
+        XCTAssertEqual(engine.snapshot.phase, .idle)
+        XCTAssertEqual(engine.snapshot.endReason, .extendedStop)
+        XCTAssertEqual(engine.snapshot.lastCompletedTripID, tripID)
+    }
+
+    func testPausedValidMovingSpeedResumesDrivingAndResetsTimer() async {
+        await publishMoving(speed: 12, lat: 37.3300, lon: -122.0100)
+        await advance(0.5)
+        await publishMoving(speed: 12, lat: 37.3302, lon: -122.0100)
+        await publishMoving(speed: 0.2, lat: 37.3302, lon: -122.0100)
+        XCTAssertEqual(engine.snapshot.phase, .stopped)
+
+        await advance(0.25)
+        await publishMoving(speed: 0.1, lat: 37.3302, lon: -122.0100)
+        XCTAssertGreaterThan(engine.snapshot.stoppedElapsedSeconds ?? 0, 0)
+
+        await publishMoving(speed: 8, lat: 37.3303, lon: -122.0100)
+        XCTAssertEqual(engine.snapshot.phase, .driving)
+        XCTAssertNil(engine.snapshot.stoppedElapsedSeconds)
+        XCTAssertNotNil(engine.snapshot.lastValidMotionSampleAt)
+    }
+
+    func testPoorGPSWhilePausedDoesNotFinalize() async {
+        await publishMoving(speed: 12, lat: 37.3300, lon: -122.0100)
+        await advance(0.5)
+        await publishMoving(speed: 12, lat: 37.3302, lon: -122.0100)
+        await publishMoving(speed: 0.2, lat: 37.3302, lon: -122.0100)
+        XCTAssertEqual(engine.snapshot.phase, .stopped)
+
+        for _ in 0..<5 {
+            await advance(0.3)
+            await publish(speed: 0.0, lat: 37.3302, lon: -122.0100, accuracy: 180)
+        }
+
+        XCTAssertEqual(engine.snapshot.phase, .stopped)
+        XCTAssertNotNil(engine.snapshot.liveTrip)
+        XCTAssertEqual(engine.snapshot.stoppedElapsedSeconds ?? -1, 0, accuracy: 0.001)
+    }
+
     func testTripOrderingNewestFirst() throws {
         let older = DriveRecord(
             vehicleName: "A",

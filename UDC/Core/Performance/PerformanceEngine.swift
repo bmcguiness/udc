@@ -80,6 +80,26 @@ final class PerformanceEngine {
         publishSnapshot()
     }
 
+    /// Cancels an incomplete timing run when the user manually ends the drive.
+    /// Already-completed Performance attachments on the DriveRecord are preserved.
+    func cancelActiveTimingForManualDriveEnd() {
+        let now = Date.now
+        switch phase {
+        case .running:
+            cancelRun(reason: .driveEnded, at: now)
+            publishSnapshot()
+            pushDiagnostics(state: telemetry.state)
+        case .armed:
+            liveRun = nil
+            transition(to: .idle)
+            resetArmingState()
+            publishSnapshot()
+            pushDiagnostics(state: telemetry.state)
+        case .idle, .completed, .cancelled:
+            break
+        }
+    }
+
     // MARK: - Telemetry
 
     private func bindTelemetry() {
